@@ -1,0 +1,10 @@
+import "server-only";
+import type { NewSubmission, Submission, SubmissionStatus } from "@/types/submission";
+/** Temporary process-local adapter; replace this boundary with Sheets/CMS/database later. */
+const submissions = new Map<string, Submission>();
+function createSubmissionId(date: Date): string { const prefix = `TMD-${date.getUTCFullYear()}-`; const sequence = [...submissions.keys()].filter((id) => id.startsWith(prefix)).length + 1; return `${prefix}${sequence.toString().padStart(4, "0")}`; }
+export async function createSubmission(input: NewSubmission): Promise<Submission> { const submittedAt = new Date(); const submission: Submission = { ...input, id: createSubmissionId(submittedAt), submittedAt: submittedAt.toISOString(), status: "received", editorNotes: [] }; submissions.set(submission.id, submission); return structuredClone(submission); }
+export async function getSubmissions(): Promise<Submission[]> { return [...submissions.values()].sort((a, b) => b.submittedAt.localeCompare(a.submittedAt)).map((submission) => structuredClone(submission)); }
+export async function getSubmissionById(id: string): Promise<Submission | undefined> { const submission = submissions.get(id); return submission ? structuredClone(submission) : undefined; }
+export async function updateSubmissionStatus(id: string, status: SubmissionStatus): Promise<Submission | undefined> { const submission = submissions.get(id); if (!submission) return undefined; const updated = { ...submission, status }; submissions.set(id, updated); return structuredClone(updated); }
+export async function updateSubmission(id: string, update: (submission: Submission) => Submission): Promise<Submission | undefined> { const submission = submissions.get(id); if (!submission) return undefined; const updated = update(structuredClone(submission)); submissions.set(id, updated); return structuredClone(updated); }
