@@ -1,16 +1,19 @@
 /**
- * TAMED Submission System
- * Deploy as Web app: Execute as Me, Who has access: Anyone.
- * Bind this script to the Google Sheet that owns the "Submissions" tab.
+ * TAMED submission API.
+ * Authorized Writers: A ID, B Season, C Type, D Name, E Email, F Status,
+ * G Submission Count, H Last Submission Date, I Maximum Submissions.
+ * Submissions: A ID, B Date, C Full Name, D Pen Name, E Email, F Phone,
+ * G Delivery Address, H Publish Preference, I Field, J Title, K Language,
+ * L Manuscript Link, M Cover Image Link, N Status.
  */
 const CONFIG = {
-  sheetName: "Submissions",
-  folderName: "TAMED Submissions",
-  status: "received",
-  headers: ["Submission ID", "Submitted Date", "Full Name", "Pen Name", "Email", "Phone Number", "Country", "City", "Delivery Address", "Publish Preference", "The Ten Field", "Title", "Language", "Manuscript Link", "Cover Image Link", "Status", "Editor Notes", "Internal Notes"]
+  SPREADSHEET_ID: "1hoxXLKp6LiLCq84wt7W3S-g1WcdD7s3FApBFoPEXu2U",
+  SUBMISSION_SHEET: "Submissions",
+  AUTHORIZED_SHEET: "Authorized Writers",
+  DRIVE_FOLDER_ID: "1C5sEelKw7K02M-fdpiI5_C_BUYbaToH1"
 };
 
-function doGet() { return jsonResponse({ ok: true, service: "TAMED submissions" }); }
+function doGet() { return json({ok:true, service:"TAMED submissions"}); }
 
 function doPost(e) {
   let stage = "starting";
@@ -18,91 +21,93 @@ function doPost(e) {
     stage = "reading request";
     if (!e || !e.postData || !e.postData.contents) throw new Error("Request body is empty.");
     const data = JSON.parse(e.postData.contents);
-    stage = "validating data";
-    validateSubmission(data);
-    stage = "generating submission id";
-    const submissionId = data.submissionId || generateSubmissionId();
-    stage = "getting upload folder";
-    const folder = getUploadFolder();
-    stage = "uploading manuscript";
-    const manuscriptUrl = uploadDataUrl(data.manuscript, folder);
-    stage = "uploading cover image";
-    const coverImageUrl = data.coverImage ? uploadDataUrl(data.coverImage, folder) : "";
-    stage = "writing spreadsheet row";
-    saveSubmission(data, submissionId, manuscriptUrl, coverImageUrl);
-    return jsonResponse({ success: true, submissionId: submissionId, manuscriptUrl: manuscriptUrl, coverImageUrl: coverImageUrl });
+    stage = "checking writer";
+    const writer = checkWriter(data.bcwoId, data.verificationEmail);
+    if (!writer.valid) return json({success:false, error:writer.error});
+    if (writer.maximum > 0 && writer.count >= writer.maximum) return json({success:false, error:"Maximum submission limit reached."});
+
+    const lock = LockService.getScriptLock();
+    lock.waitLock(30000);
+    try {
+      stage = "creating submission id";
+      const id = createSubmissionId();
+      stage = "uploading manuscript";
+      const manuscriptUrl = uploadFile(data.manuscript, "Manuscripts", id, true);
+      stage = "uploading cover image";
+      const coverUrl = data.coverImage ? uploadFile(data.coverImage, "Cover Images", id, false) : "";
+      stage = "writing submission row";
+      saveSubmission(data, id, manuscriptUrl, coverUrl);
+      stage = "updating writer count";
+      increaseCount(writer.row);
+      return json({success:true, submissionId:id});
+    } finally { lock.releaseLock(); }
   } catch (error) {
-    const message = error && error.message ? error.message : String(error);
-    const eligibilityFailure = /bcwo|verification|registration|season|inactive|authorized writer|account/i.test(message);
-    return jsonResponse({
-      success: false,
-      stage: stage,
-      error: eligibilityFailure
-        ? "That BCWO ID and verification email could not be found in our database."
-        : message
-    });
+    return json({success:false, stage:stage, error:error && error.message ? error.message : String(error)});
   }
 }
 
-function validateSubmission(data) {
-  ["title", "email", "field", "manuscript"].forEach(function (name) {
-    if (!data[name]) throw new Error(name + " is required.");
-  });
-  if (!data.manuscript.data || !data.manuscript.name) throw new Error("Manuscript data is invalid.");
-  if (data.coverImage && (!data.coverImage.data || !data.coverImage.name)) throw new Error("Cover image data is invalid.");
+function checkWriter(id, email) {
+  const cleanId = String(id || "").trim().toLowerCase();
+  const cleanEmail = String(email || "").trim().toLowerCase();
+  if (!cleanId || !cleanEmail) return invalidWriter();
+  const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.AUTHORIZED_SHEET);
+  if (!sheet) throw new Error("Sheet not found: " + CONFIG.AUTHORIZED_SHEET);
+  const rows = sheet.getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (String(row[0] || "").trim().toLowerCase() !== cleanId) continue;
+    if (String(row[4] || "").trim().toLowerCase() !== cleanEmail) continue;
+    const status = String(row[5] || "").trim().toLowerCase();
+    if (status && status !== "active") return invalidWriter();
+    return {valid:true, row:i + 1, count:toNumber(row[6]), maximum:toNumber(row[8])};
+  }
+  return invalidWriter();
 }
 
-function generateSubmissionId() {
-  const stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMddHHmmss");
-  return "TMD-" + stamp + "-" + Math.floor(1000 + Math.random() * 9000);
-}
+function invalidWriter() { return {valid:false, error:"That BCWO ID and verification email could not be found in our database."}; }
 
-function getUploadFolder() {
-  const folders = DriveApp.getFoldersByName(CONFIG.folderName);
-  return folders.hasNext() ? folders.next() : DriveApp.createFolder(CONFIG.folderName);
-}
-
-function uploadDataUrl(file, folder) {
-  const comma = file.data.indexOf(",");
-  if (comma < 0) throw new Error("Invalid data URL for " + file.name + ".");
-  const encoded = file.data.substring(comma + 1);
-  const bytes = Utilities.base64Decode(encoded);
-  const blob = Utilities.newBlob(bytes, file.type || "application/octet-stream", file.name);
+function uploadFile(file, childName, id, required) {
+  if (!file || !file.data || !file.name) {
+    if (required) throw new Error("Manuscript file is missing.");
+    return "";
+  }
+  const root = DriveApp.getFolderById(CONFIG.DRIVE_FOLDER_ID);
+  const folders = root.getFoldersByName(childName);
+  const folder = folders.hasNext() ? folders.next() : root.createFolder(childName);
+  const raw = String(file.data);
+  const comma = raw.indexOf(",");
+  const encoded = comma >= 0 ? raw.slice(comma + 1) : raw;
+  const blob = Utilities.newBlob(Utilities.base64Decode(encoded), file.type || "application/octet-stream", file.name);
   const created = folder.createFile(blob);
+  created.setName(id + "_" + file.name);
   return created.getUrl();
 }
 
-function saveSubmission(data, submissionId, manuscriptUrl, coverImageUrl) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.sheetName);
-  if (!sheet) throw new Error("Sheet not found: " + CONFIG.sheetName);
-  ensureHeaders(sheet);
-  sheet.appendRow([
-    submissionId,
-    new Date(),
-    data.writerName || "",
-    data.penName || "",
-    data.email || "",
-    data.phone || "",
-    data.country || "",
-    data.city || "",
-    data.deliveryAddress || "",
-    data.publishPreference || "",
-    data.field || "",
-    data.title || "",
-    data.language || "",
-    manuscriptUrl,
-    coverImageUrl,
-    data.status || CONFIG.status,
-    "",
-    ""
-  ]);
+function saveSubmission(data, id, manuscriptUrl, coverUrl) {
+  const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.SUBMISSION_SHEET);
+  if (!sheet) throw new Error("Sheet not found: " + CONFIG.SUBMISSION_SHEET);
+  sheet.appendRow([id, new Date(), data.writerName || "", data.penName || "", data.email || "", data.phone || "", data.deliveryAddress || "", data.publishPreference || "", data.field || "", data.title || "", data.language || "", manuscriptUrl, coverUrl, "Pending"]);
 }
 
-function ensureHeaders(sheet) {
-  const current = sheet.getRange(1, 1, 1, CONFIG.headers.length).getValues()[0];
-  if (current[0] !== CONFIG.headers[0]) sheet.getRange(1, 1, 1, CONFIG.headers.length).setValues([CONFIG.headers]);
+function increaseCount(rowNumber) {
+  const sheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID).getSheetByName(CONFIG.AUTHORIZED_SHEET);
+  sheet.getRange(rowNumber, 7).setValue(toNumber(sheet.getRange(rowNumber, 7).getValue()) + 1);
+  sheet.getRange(rowNumber, 8).setValue(new Date());
 }
 
-function jsonResponse(value) {
-  return ContentService.createTextOutput(JSON.stringify(value)).setMimeType(ContentService.MimeType.JSON);
+function createSubmissionId() {
+  return "TMD-" + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMdd-HHmmss") + "-" + Math.floor(1000 + Math.random() * 9000);
 }
+
+function toNumber(value) { const n = Number(value); return isFinite(n) ? n : 0; }
+function json(value) { return ContentService.createTextOutput(JSON.stringify(value)).setMimeType(ContentService.MimeType.JSON); }
+
+function testSetup() {
+  const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  const root = DriveApp.getFolderById(CONFIG.DRIVE_FOLDER_ID);
+  Logger.log("Spreadsheet: " + spreadsheet.getName());
+  Logger.log("Drive folder: " + root.getName());
+  Logger.log("Authorized Writers tab: " + !!spreadsheet.getSheetByName(CONFIG.AUTHORIZED_SHEET));
+  Logger.log("Submissions tab: " + !!spreadsheet.getSheetByName(CONFIG.SUBMISSION_SHEET));
+}
+
