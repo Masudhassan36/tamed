@@ -29,9 +29,9 @@ export async function submitWork(_previous: SubmitFormState, data: FormData): Pr
   const manuscript: SubmissionFile = { name: manuscriptFile.name, type: manuscriptFile.type, size: 0, lastModified: 0, url: "" };
   const coverImage: SubmissionFile | null = coverFile ? { name: coverFile.name, type: coverFile.type, size: 0, lastModified: 0, url: "" } : null;
   const input: NewSubmission = { bcwoId, verificationEmail, writerName, penName, email, phone: text(data, "phone"), deliveryAddress: text(data, "deliveryAddress"), publishPreference: preference, field, title, language, manuscript, coverImage };
-  const submission = await createSubmission(input);
   const endpoint = process.env.GOOGLE_SCRIPT_URL?.trim();
-  if (!endpoint) return { submissionId: submission.id };
+  if (!endpoint) return { error: "Submission service is not configured. Add GOOGLE_SCRIPT_URL to the deployed app environment." };
+  const submission = await createSubmission(input);
   try {
     const response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ submissionId: submission.id, submittedAt: submission.submittedAt, bcwoId, verificationEmail, writerName, penName, email, phone: text(data, "phone"), deliveryAddress: text(data, "deliveryAddress"), publishPreference: preference, field, title, language, manuscript: manuscriptFile, coverImage: coverFile, status: submission.status }) });
     const result = await response.json() as { success?: boolean; submissionId?: string; stage?: string; error?: string };
