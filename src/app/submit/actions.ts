@@ -36,7 +36,9 @@ export async function submitWork(_previous: SubmitFormState, data: FormData): Pr
     const response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ submissionId: submission.id, submittedAt: submission.submittedAt, bcwoId, verificationEmail, writerName, penName, email, phone: text(data, "phone"), deliveryAddress: text(data, "deliveryAddress"), publishPreference: preference, field, title, language, manuscript: manuscriptFile, coverImage: coverFile, status: submission.status }) });
     const result = await response.json() as { success?: boolean; submissionId?: string; stage?: string; error?: string };
     if (!response.ok || result.success !== true) {
-      if (/bcwo|verification|registration/i.test(result.error || "")) return { error: "Invalid BCWO ID or verification email. Please try again." };
+      if (/bcwo|verification|registration|season|inactive|authorized writer|account/i.test(result.error || "")) {
+        return { error: "That BCWO ID and verification email could not be found in our database. Please check both and try again." };
+      }
       const detail = [result.stage, result.error].filter(Boolean).join(": ");
       return { error: detail ? `Apps Script error (${detail}). Please try again.` : "Your submission could not be completed. Please try again." };
     }

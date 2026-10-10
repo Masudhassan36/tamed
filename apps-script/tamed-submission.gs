@@ -32,7 +32,15 @@ function doPost(e) {
     saveSubmission(data, submissionId, manuscriptUrl, coverImageUrl);
     return jsonResponse({ success: true, submissionId: submissionId, manuscriptUrl: manuscriptUrl, coverImageUrl: coverImageUrl });
   } catch (error) {
-    return jsonResponse({ success: false, stage: stage, error: error && error.message ? error.message : String(error) });
+    const message = error && error.message ? error.message : String(error);
+    const eligibilityFailure = /bcwo|verification|registration|season|inactive|authorized writer|account/i.test(message);
+    return jsonResponse({
+      success: false,
+      stage: stage,
+      error: eligibilityFailure
+        ? "That BCWO ID and verification email could not be found in our database."
+        : message
+    });
   }
 }
 
