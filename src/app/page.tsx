@@ -5,19 +5,22 @@ import FeaturedArticle from "@/components/FeaturedArticle";
 import RatingBadge from "@/components/RatingBadge";
 import TenCard from "@/components/TenCard";
 import SectionTitle from "@/components/SectionTitle";
-import { getFeaturedArticle, getFieldTitle, getPublishedArticles, toArticleCardData } from "@/lib/articles";
+import LiveDate from "@/components/LiveDate";
+import ArticleSearch from "@/components/ArticleSearch";
+import { getFeaturedArticle, getFieldTitle, getLatestIssue, getPublishedArticles, toArticleCardData } from "@/lib/articles";
 import { theTen } from "@/lib/content";
 
 export default function Home() {
   const publishedArticles = getPublishedArticles();
-  const latestArticles = publishedArticles.slice(0, 3);
-  const honors = publishedArticles.filter((article) => article.editorialRating === "5+");
+  const latestArticles = publishedArticles;
+  const latestIssue = getLatestIssue();
+  const honors = publishedArticles.filter((article) => article.editorialRating === "5+" && article.issue === latestIssue);
   const featuredArticle = getFeaturedArticle();
 
   return (
     <main>
       <section className="hero page-width" aria-labelledby="hero-title">
-        <div className="hero-topline"><span>Independent literary journal</span><span>Week 1 · Oct</span></div>
+        <div className="hero-topline"><span>Independent literary journal</span><span><LiveDate /> · <em className="hero-issue">Issue 1</em></span></div>
         <div className="hero-center">
           <p className="hero-kicker">Writing that refuses to remain silent</p>
           <h1 id="hero-title" className="hero-wordmark">
@@ -32,13 +35,17 @@ export default function Home() {
         <div className="hero-bottomline"><span>Published by Bangladesh Creative Writing Olympiad</span><span>Read without permission</span></div>
       </section>
 
+      <section className="editorial-section page-width homepage-search-section">
+        <ArticleSearch articles={publishedArticles.map(toArticleCardData)} />
+      </section>
+
       <section className="editorial-section page-width" aria-labelledby="feature-heading">
         <SectionTitle eyebrow="01 / The journal" title="Today's Feature" number="01" />
         <div id="feature-heading">{featuredArticle && <FeaturedArticle article={featuredArticle} />}</div>
       </section>
 
       <section className="editorial-section page-width" id="latest">
-        <SectionTitle eyebrow="02 / From the archive" title="Latest Pieces" description="New writing, selected by the editors." number="02" />
+        <SectionTitle eyebrow="02 / From the archive" title={`Issue ${latestIssue}`} description="The current issue, with every published piece arranged newest first." number="02" />
         <div className="article-grid">
           {latestArticles.map((article) => <ArticleCard key={article.slug} article={toArticleCardData(article)} />)}
         </div>

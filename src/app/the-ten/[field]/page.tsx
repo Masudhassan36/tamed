@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import ArticleCard from "@/components/ArticleCard";
+import ArticleCollection from "@/components/ArticleCollection";
 import SectionTitle from "@/components/SectionTitle";
 import { getArticlesByField, toArticleCardData } from "@/lib/articles";
 import { theTen } from "@/lib/content";
@@ -27,6 +27,7 @@ export default async function EditorialFieldPage({ params }: { params: Promise<{
   if (!field) notFound();
 
   const fieldArticles = getArticlesByField(field.slug);
+  const subsections = field.subsections ?? [];
 
   return (
     <main className="field-page page-width">
@@ -35,24 +36,20 @@ export default async function EditorialFieldPage({ params }: { params: Promise<{
         <p className="eyebrow">Field {field.number} / TAMED</p>
         <h1>{field.title}</h1>
         <p>{field.description}</p>
-      </header>
-      <section className="field-featured">
-        <SectionTitle eyebrow="Selected by the editors" title="Featured Pieces" />
-        {fieldArticles.length > 0 ? (
-          <div className="article-grid">
-            {fieldArticles.slice(0, 1).map((article) => <ArticleCard key={article.slug} article={toArticleCardData(article)} />)}
+        {subsections.length > 0 && (
+          <div className="field-subsections">
+            <p className="field-subsections-label">Subsections</p>
+            <ul className="field-subsections-list">
+              {subsections.map((subsection) => (
+                <li key={subsection.slug}>{subsection.title}</li>
+              ))}
+            </ul>
           </div>
-        ) : <p className="empty-field">The editors are preparing this field. New work will appear here soon.</p>}
-      </section>
-      <section className="field-latest">
-        <SectionTitle eyebrow="Recently published" title="Latest Pieces" />
-        {fieldArticles.length > 1 ? (
-          <div className="article-grid">
-            {fieldArticles.slice(1).map((article) => <ArticleCard key={article.slug} article={toArticleCardData(article)} />)}
-          </div>
-        ) : (
-          <p className="empty-field">This field&apos;s archive is growing. Visit again for its latest writing.</p>
         )}
+      </header>
+      <section className="field-latest">
+        <SectionTitle eyebrow="Across every issue" title="The Field" description="Browse this category by top rated work, latest publication, or issue." />
+        <ArticleCollection articles={fieldArticles.map(toArticleCardData)} emptyMessage="This field's archive is growing. Visit again for its latest writing." />
       </section>
     </main>
   );

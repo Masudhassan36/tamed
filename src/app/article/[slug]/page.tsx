@@ -2,10 +2,11 @@ import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import ArticleBody from "@/components/ArticleBody";
 import ArticleCard from "@/components/ArticleCard";
 import RatingBadge from "@/components/RatingBadge";
 import SectionTitle from "@/components/SectionTitle";
-import { getArticleBySlug, getArticlesByField, getFieldTitle, getPublishedArticles, toArticleCardData } from "@/lib/articles";
+import { formatPublicationDate, getArticleBySlug, getArticlesByField, getFieldTitle, getPublishedArticles, toArticleCardData } from "@/lib/articles";
 
 export function generateStaticParams() {
   return getPublishedArticles().map(({ slug }) => ({ slug }));
@@ -45,38 +46,38 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
 
   const related = getArticlesByField(article.field).filter((item) => item.slug !== article.slug).slice(0, 2);
   const relatedPieces = related.length ? related : getPublishedArticles().filter((item) => item.slug !== article.slug).slice(0, 2);
+  const isRemoteCover = /^https?:/.test(article.coverImage);
 
   return (
     <main className="article-page page-width">
       <Link className="back-link" href="/">← Back to the journal</Link>
-      <article>
+      <article className="article-reader">
         <header className="article-header">
           <p className="eyebrow">{getFieldTitle(article.field)}</p>
           <h1>{article.title}</h1>
-          {(article.author || article.readingTime || article.publishedAt) && (
-            <p className="article-byline">
-              {[article.author && `By ${article.author}`, article.readingTime, article.publishedAt].filter(Boolean).join(" · ")}
-            </p>
-          )}
-          <RatingBadge rating={article.editorialRating} />
-          {article.sourceUrl && <a className="text-link article-source" href={article.sourceUrl} target="_blank" rel="noreferrer">Originally published on Medium <span aria-hidden="true">↗</span></a>}
+          <div className="article-meta">
+            {article.author && <span>By {article.author}</span>}
+            {article.publishedAt && <time dateTime={article.publishedAt}>{formatPublicationDate(article.publishedAt)}</time>}
+            <span>Issue {article.issue}</span>
+            <RatingBadge rating={article.editorialRating} />
+          </div>
         </header>
         <figure className="article-cover image-frame">
-          <Image src={article.coverImage} alt={article.imageAlt} fill priority sizes="100vw" />
+          <Image src={article.coverImage} alt={article.imageAlt} fill priority sizes="100vw" unoptimized={isRemoteCover} />
           <figcaption>From the TAMED journal</figcaption>
         </figure>
-        <div className="article-body">
-          <p className="article-deck">{article.excerpt}</p>
-          {article.content.map((paragraph, index) => (
-            <p key={`${article.slug}-${index}`}>{paragraph}</p>
-          ))}
-          {article.editorsNote && (
-            <aside className="editors-note">
-              <p className="eyebrow">Editor&apos;s Note</p>
-              <p>{article.editorsNote}</p>
-            </aside>
-          )}
-        </div>
+        <ArticleBody article={article} />
+        {article.editorsNote && (
+          <aside className="editors-note">
+            <p className="eyebrow">Editor&apos;s Note</p>
+            <p>{article.editorsNote}</p>
+          </aside>
+        )}
+        {article.author && (
+          <footer className="article-byline-bottom">
+            <span>— {article.author}</span>
+          </footer>
+        )}
       </article>
       <section className="related-section">
         <SectionTitle eyebrow="Continue reading" title="Related Pieces" />

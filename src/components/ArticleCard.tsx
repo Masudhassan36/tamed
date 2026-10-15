@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import type { ArticleCardData } from "@/lib/articles";
+import { formatPublicationDate, type ArticleCardData } from "@/lib/articles";
 import RatingBadge from "@/components/RatingBadge";
 
 type ArticleCardProps = {
@@ -17,8 +17,10 @@ export default function ArticleCard({ article }: ArticleCardProps) {
       </Link>
       <p className="article-category">{article.fieldTitle}</p>
       <h3><Link href={`/article/${article.slug}`}>{article.title}</Link></h3>
+      {article.firstLine && <p className="article-crux">{article.firstLine}</p>}
       <p className="article-author">{article.author ? `by ${article.author}` : "Byline not supplied"}</p>
-      <p className="article-excerpt">{article.excerpt}</p>
+      {article.publishedAt && <time className="article-date" dateTime={article.publishedAt}>Published {formatPublicationDate(article.publishedAt)}</time>}
+      <p className="article-issue">Issue {article.issue}</p>
       <RatingBadge rating={article.editorialRating} />
     </article>
   );

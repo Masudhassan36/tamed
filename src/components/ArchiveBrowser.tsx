@@ -40,20 +40,23 @@ export default function ArchiveBrowser({ articles }: ArchiveBrowserProps) {
   const [week, setWeek] = useState("all");
   const [month, setMonth] = useState("all");
   const [year, setYear] = useState("all");
+  const [issue, setIssue] = useState("all");
 
   const datedArticles = articles.map((article) => ({ article, date: publicationParts(article.publishedAt) }));
   const availableMonths = Array.from(new Set(datedArticles.flatMap(({ date }) => date ? [date.month] : []))).sort((a, b) => a - b);
   const availableWeeks = Array.from(new Set(datedArticles.flatMap(({ date }) => date ? [date.week] : []))).sort((a, b) => a - b);
   const availableYears = Array.from(new Set(datedArticles.flatMap(({ date }) => date?.year ? [date.year] : []))).sort((a, b) => Number(b) - Number(a));
+  const availableIssues = Array.from(new Set(articles.map((article) => article.issue))).sort((a, b) => b - a);
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const filteredArticles = datedArticles.filter(({ article, date }) => {
     const matchesQuery = !normalizedQuery || `${article.title} ${article.author ?? ""}`.toLocaleLowerCase().includes(normalizedQuery);
     const matchesWeek = week === "all" || date?.week === Number(week);
     const matchesMonth = month === "all" || date?.month === Number(month);
     const matchesYear = year === "all" || (year === "unknown" ? !date?.year : date?.year === year);
-    return matchesQuery && matchesWeek && matchesMonth && matchesYear;
+    const matchesIssue = issue === "all" || article.issue === Number(issue);
+    return matchesQuery && matchesWeek && matchesMonth && matchesYear && matchesIssue;
   });
-  const hasFilters = Boolean(normalizedQuery) || week !== "all" || month !== "all" || year !== "all";
+  const hasFilters = Boolean(normalizedQuery) || week !== "all" || month !== "all" || year !== "all" || issue !== "all";
 
   return (
     <div className="archive-browser">
@@ -90,6 +93,13 @@ export default function ArchiveBrowser({ articles }: ArchiveBrowserProps) {
             {datedArticles.some(({ date }) => !date?.year) && <option value="unknown">Year not supplied</option>}
           </select>
         </label>
+        <label htmlFor="archive-issue">
+          <span>Issue</span>
+          <select id="archive-issue" value={issue} onChange={(event) => setIssue(event.target.value)}>
+            <option value="all">All issues</option>
+            {availableIssues.map((value) => <option key={value} value={value}>Issue {value}</option>)}
+          </select>
+        </label>
       </div>
       <div className="archive-results-heading" aria-live="polite">
         <span>{filteredArticles.length} {filteredArticles.length === 1 ? "work" : "works"}</span>
@@ -99,6 +109,7 @@ export default function ArchiveBrowser({ articles }: ArchiveBrowserProps) {
             setWeek("all");
             setMonth("all");
             setYear("all");
+            setIssue("all");
           }}>
             Clear filters
           </button>
