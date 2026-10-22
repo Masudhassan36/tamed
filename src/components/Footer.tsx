@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Logo from "@/components/Logo";
+import { FacebookIcon, InstagramIcon } from "@/components/Icons";
 
 export default function Footer() {
   return (
@@ -11,8 +12,8 @@ export default function Footer() {
         </div>
         <a href="mailto:tamed@bcwo.org">tamed@bcwo.org</a>
         <div className="footer-social" aria-label="Social media">
-          <span>Instagram</span>
-          <span>Facebook</span>
+          <span aria-label="Instagram" title="Instagram"><InstagramIcon /></span>
+          <span aria-label="Facebook" title="Facebook"><FacebookIcon /></span>
         </div>
         <Link className="back-to-top" href="#top">Back to top ↑</Link>
       </div>

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import TenCard from "@/components/TenCard";
 import SectionTitle from "@/components/SectionTitle";
-import { theTen } from "@/lib/content";
+import { standaloneCategories, theTen } from "@/lib/content";
 
 export const metadata: Metadata = {
   title: "The Ten",
@@ -20,6 +20,13 @@ export default function TheTenPage() {
         <SectionTitle eyebrow="01—10 / Fields of attention" title="An open index" number="10 fields" />
         <div className="ten-list">
           {theTen.map((field) => <TenCard key={field.slug} field={field} />)}
+        </div>
+        <div className="ten-alongside">
+          <p className="eyebrow">Alongside the ten</p>
+          <p className="ten-alongside-note">A category published outside the numbered index, and offered to writers on the same terms.</p>
+          <div className="ten-list">
+            {standaloneCategories.map((field) => <TenCard key={field.slug} field={field} />)}
+          </div>
         </div>
       </section>
     </main>

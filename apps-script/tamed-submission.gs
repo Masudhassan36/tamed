@@ -6,10 +6,10 @@
  * G Delivery Address, H Publish Preference, I Field, J Title, K Language,
  * L Manuscript Link, M Cover Image Link, N Status.
  *
- * Column I holds every editorial field the writer selected, comma separated,
- * for example "fiction, sci-fi" or "poetry, letters".
- * The manuscript and the cover image are both required. The column count and
- * column order above are fixed: do not add, remove or reorder columns.
+ * Column I holds every editorial category the writer selected, comma
+ * separated, e.g. "fiction, poetry, sci-fi". The manuscript and the cover
+ * image are both required. The column count and column order above are fixed:
+ * do not add, remove or reorder columns.
  */
 const CONFIG = {
   SPREADSHEET_ID: "1hoxXLKp6LiLCq84wt7W3S-g1WcdD7s3FApBFoPEXu2U",
@@ -18,7 +18,21 @@ const CONFIG = {
   DRIVE_FOLDER_ID: "1C5sEelKw7K02M-fdpiI5_C_BUYbaToH1"
 };
 
-function doGet() { return json({ok:true, service:"TAMED submissions"}); }
+// GET without parameters is a health check. GET with action=verify answers one
+// question for the submission form: is this BCWO ID and email on the Authorized
+// Writers sheet? It answers true or false and never returns a writer's details.
+function doGet(e) {
+  const params = (e && e.parameter) || {};
+  if (String(params.action || "").toLowerCase() === "verify") {
+    try {
+      const writer = checkWriter(params.bcwoId, params.verificationEmail);
+      return json({success:true, verified:writer.valid === true});
+    } catch (error) {
+      return json({success:false, error:error && error.message ? error.message : String(error)});
+    }
+  }
+  return json({ok:true, service:"TAMED submissions"});
+}
 
 function doPost(e) {
   let stage = "starting";
@@ -95,17 +109,8 @@ function uploadFile(file, childName, id, requiredLabel) {
 // through unchanged, so the sheet contract stays the same either way.
 function submissionFieldValue(data) {
   const categories = Array.isArray(data.categories) ? data.categories.filter(Boolean) : [];
-  if (!categories.length) return data.field || "";
-  const subsections = Array.isArray(data.subcategories) ? data.subcategories : [];
-  return categories
-    .map(function (slug) {
-      const prefix = String(slug) + ":";
-      const own = subsections
-        .filter(function (key) { return String(key).indexOf(prefix) === 0; })
-        .map(function (key) { return String(key).slice(prefix.length); });
-      return own.length ? slug + "/" + own.join("+") : slug;
-    })
-    .join(", ");
+  if (categories.length) return categories.join(", ");
+  return data.field || "";
 }
 
 function saveSubmission(data, id, manuscriptUrl, coverUrl) {

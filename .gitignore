@@ -38,6 +38,8 @@ yarn-error.log*
 
 # temporary extraction artifacts
 tmp/
+.issue2-import/
+*.log
 
 # typescript
 *.tsbuildinfo

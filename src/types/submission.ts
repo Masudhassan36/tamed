@@ -1,4 +1,4 @@
-import type { EditorialFieldSlug } from "@/lib/content";
+import type { CategorySlug } from "@/lib/content";
 
 export const SUBMISSION_STATUSES = ["received", "under-review", "revision-requested", "accepted", "rejected", "published"] as const;
 export type SubmissionStatus = (typeof SUBMISSION_STATUSES)[number];
@@ -16,10 +16,8 @@ export interface Submission {
   phone: string;
   deliveryAddress: string;
   publishPreference: PublishPreference;
-  /** Every editorial field the writer selected, in the order shown on the form. */
-  categories: EditorialFieldSlug[];
-  /** Optional subsections, stored as "field-slug:subsection-slug". */
-  subcategories: string[];
+  /** Every editorial category the writer selected, in the order shown on the form. */
+  categories: CategorySlug[];
   title: string;
   language: string;
   manuscript: SubmissionFile;

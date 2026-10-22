@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Logo from "@/components/Logo";
-import { theTen } from "@/lib/content";
+import { FacebookIcon, InstagramIcon } from "@/components/Icons";
+import { editorialCategories } from "@/lib/content";
 
 const links = [
   { label: "Home", href: "/" },
@@ -26,12 +27,14 @@ export default function Navbar() {
           ))}
         </nav>
         <div className="social-placeholders" aria-label="Social media">
-          <span aria-label="Instagram" title="Instagram">◎</span>
-          <span aria-label="Facebook" title="Facebook">f</span>
+          <span aria-label="Instagram" title="Instagram"><InstagramIcon /></span>
+          <span aria-label="Facebook" title="Facebook"><FacebookIcon /></span>
         </div>
       </div>
       <nav className="category-nav" aria-label="Browse categories">
-        {theTen.map((field) => <Link key={field.slug} href={`/the-ten/${field.slug}`}>{field.title}</Link>)}
+        {editorialCategories.map((category) => (
+          <Link key={category.slug} href={`/the-ten/${category.slug}`}>{category.title}</Link>
+        ))}
       </nav>
     </header>
   );

@@ -4,52 +4,42 @@ import { notFound } from "next/navigation";
 import ArticleCollection from "@/components/ArticleCollection";
 import SectionTitle from "@/components/SectionTitle";
 import { getArticlesByField, toArticleCardData } from "@/lib/articles";
-import { theTen } from "@/lib/content";
+import { editorialCategories, findCategory, isInTheTen } from "@/lib/content";
 
 export function generateStaticParams() {
-  return theTen.map(({ slug }) => ({ field: slug }));
+  return editorialCategories.map(({ slug }) => ({ field: slug }));
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ field: string }> }): Promise<Metadata> {
   const { field: slug } = await params;
-  const field = theTen.find((item) => item.slug === slug);
-  if (!field) return { title: "Editorial field not found" };
+  const category = findCategory(slug);
+  if (!category) return { title: "Category not found" };
 
   return {
-    title: field.title,
-    description: `${field.description} Read work in ${field.title} at TAMED™.`,
+    title: category.title,
+    description: `${category.description} Read work in ${category.title} at TAMED™.`,
   };
 }
 
 export default async function EditorialFieldPage({ params }: { params: Promise<{ field: string }> }) {
   const { field: slug } = await params;
-  const field = theTen.find((item) => item.slug === slug);
-  if (!field) notFound();
+  const category = findCategory(slug);
+  if (!category) notFound();
 
-  const fieldArticles = getArticlesByField(field.slug);
-  const subsections = field.subsections ?? [];
+  const categoryArticles = getArticlesByField(category.slug);
+  const isField = isInTheTen(category.slug);
 
   return (
     <main className="field-page page-width">
       <Link className="back-link" href="/the-ten">← The Ten</Link>
       <header className="field-header">
-        <p className="eyebrow">Field {field.number} / TAMED</p>
-        <h1>{field.title}</h1>
-        <p>{field.description}</p>
-        {subsections.length > 0 && (
-          <div className="field-subsections">
-            <p className="field-subsections-label">Subsections</p>
-            <ul className="field-subsections-list">
-              {subsections.map((subsection) => (
-                <li key={subsection.slug}>{subsection.title}</li>
-              ))}
-            </ul>
-          </div>
-        )}
+        <p className="eyebrow">{category.number ? `Field ${category.number} / TAMED` : "Published alongside The Ten"}</p>
+        <h1>{category.title}</h1>
+        <p>{category.description}</p>
       </header>
       <section className="field-latest">
-        <SectionTitle eyebrow="Across every issue" title="The Field" description="Browse this category by top rated work, latest publication, or issue." />
-        <ArticleCollection articles={fieldArticles.map(toArticleCardData)} emptyMessage="This field's archive is growing. Visit again for its latest writing." />
+        <SectionTitle eyebrow="Across every issue" title={isField ? "The Field" : "The Category"} description="Browse this category by top rated work, latest publication, or issue." />
+        <ArticleCollection articles={categoryArticles.map(toArticleCardData)} emptyMessage="This category's archive is growing. Visit again for its latest writing." />
       </section>
     </main>
   );
