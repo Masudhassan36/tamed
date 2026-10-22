@@ -7,6 +7,7 @@ type DisplayBlock = { kind: "paragraph" | "quote" | "heading" | "break"; runs?: 
 
 const headingPattern = /^[A-Z][^.!?,:;]{1,64}$/;
 const quotePattern = /^[“"‘«][\s\S]*[”"’»]$/;
+const dialoguePattern = /^[“"][\s\S]*[”"][\s\S]{0,100}$/;
 
 function cleanTypography(value: string): string {
   return value
@@ -43,7 +44,7 @@ function classify(text: string, article: Article): DisplayBlock["kind"] {
   const value = text.trim();
   if (!value) return "break";
   if (!isVerseArticle(article) && isHeading(value, article)) return "heading";
-  if (!isVerseArticle(article) && quotePattern.test(value)) return "quote";
+  if (!isVerseArticle(article) && (quotePattern.test(value) || dialoguePattern.test(value))) return "quote";
   return "paragraph";
 }
 

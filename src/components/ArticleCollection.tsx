@@ -10,7 +10,7 @@ export default function ArticleCollection({ articles, emptyMessage = "No works m
   const [sort, setSort] = useState<"top" | "latest">("top");
   const [issue, setIssue] = useState("all");
   const issues = Array.from(new Set(articles.map((article) => article.issue))).sort((a, b) => b - a);
-  const ratingRank = (rating: ArticleCardData["editorialRating"]) => rating ? { "5+": 6, "5": 5, "4+": 4, "4": 3, "3+": 2, "3": 1 }[rating] : 0;
+  const ratingRank = (rating: ArticleCardData["editorialRating"]) => rating ? { "5+": 8, "5": 7, "4+": 6, "4": 5, "3+": 4, "3": 3, "2+": 2, "2": 1 }[rating] : 0;
   const visible = useMemo(() => {
     return articles
       .filter((article) => issue === "all" || article.issue === Number(issue))

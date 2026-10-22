@@ -1,8 +1,8 @@
 import articleRecords from "./articles-data.json";
 import ratedSubmissionRecords from "./rated-submissions.json";
 import manuscriptRecords from "./manuscripts.json";
-import { theTen } from "./content";
-import type { EditorialFieldSlug } from "./content";
+import { findCategory } from "./content";
+import type { CategorySlug } from "./content";
 
 export const EDITORIAL_RATINGS = {
   "5+": "Exceptional",
@@ -13,7 +13,7 @@ export const EDITORIAL_RATINGS = {
   "3": "Developing",
 } as const;
 
-export type EditorialRating = keyof typeof EDITORIAL_RATINGS;
+export type EditorialRating = "2+" | "2" | keyof typeof EDITORIAL_RATINGS;
 export type AuthorType = "real-name" | "pen-name" | "anonymous";
 export type ArticleStatus = "draft" | "review" | "accepted" | "published" | "archived";
 
@@ -21,7 +21,7 @@ export interface ArticleSubmissionFields {
   id: string;
   slug: string;
   title: string;
-  field: EditorialFieldSlug;
+  field: CategorySlug;
   authorType: AuthorType;
   writerName?: string;
   penName?: string;
@@ -35,7 +35,7 @@ export interface Article {
   id: string;
   slug: string;
   title: string;
-  field: EditorialFieldSlug;
+  field: CategorySlug;
   author: string | null;
   authorType: AuthorType | null;
   excerpt: string;
@@ -170,7 +170,7 @@ const ratedSubmissions: Article[] = (ratedSubmissionRecords as Partial<RatedSubm
       id: record.id,
       slug: record.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""),
       title: record.title,
-      field: (record.field ?? "poetry") as EditorialFieldSlug,
+      field: (record.field ?? "poetry") as CategorySlug,
       author: record.author,
       authorType: "pen-name" as AuthorType,
       excerpt: record.excerpt ?? "A published piece from the TAMED editorial archive.",
@@ -181,7 +181,7 @@ const ratedSubmissions: Article[] = (ratedSubmissionRecords as Partial<RatedSubm
       language: record.language ?? "English",
       publishedAt: ISSUE_ONE_DATE,
       issue: 1,
-      editorialRating: (record.rating?.match(/^[3-5](?:\+)?/)?.[0] ?? null) as EditorialRating | null,
+      editorialRating: (record.rating?.match(/^[2-5](?:\+)?/)?.[0] ?? null) as EditorialRating | null,
       editorsNote: record.editorialNote || null,
       status: "published" as ArticleStatus,
       sourceUrl: record.manuscript ?? undefined,
@@ -190,8 +190,16 @@ const ratedSubmissions: Article[] = (ratedSubmissionRecords as Partial<RatedSubm
   });
 
 const publishedFeed = [...allArticles, ...ratedSubmissions];
-const ratingWeight = (rating: EditorialRating | null) => rating ? ({ "5+": 6, "5": 5, "4+": 4, "4": 3, "3+": 2, "3": 1 }[rating]) : 0;
+const ratingWeight = (rating: EditorialRating | null) => rating ? ({ "5+": 7, "5": 6, "4+": 5, "4": 4, "3+": 3, "3": 2, "2+": 1, "2": 0.5 }[rating]) : 0;
 const dateWeight = (value: string | null) => value ? Date.parse(value.length === 7 ? `${value}-01` : value) || 0 : 0;
+const minimumPublicationRating: EditorialRating = "3";
+
+export function isPublicationEligible(article: Article): boolean {
+  if (!article.status || article.status !== "published") return false;
+  const rating = article.editorialRating;
+  if (!rating) return true;
+  return ratingWeight(rating) >= ratingWeight(minimumPublicationRating);
+}
 
 export function formatPublicationDate(value: string | null): string | null {
   const normalized = normalizePublicationDate(value);
@@ -229,7 +237,9 @@ export function createReviewArticleFromSubmission(submission: ArticleSubmissionF
 }
 
 export function getPublishedArticles(): Article[] {
-  return publishedFeed.filter((article) => article.status === "published").sort((a, b) => dateWeight(b.publishedAt) - dateWeight(a.publishedAt));
+  return publishedFeed
+    .filter((article) => article.status === "published" && isPublicationEligible(article))
+    .sort((a, b) => dateWeight(b.publishedAt) - dateWeight(a.publishedAt));
 }
 
 export function getAvailableIssues(): number[] {
@@ -244,16 +254,54 @@ export function getArticleBySlug(slug: string): Article | undefined {
   return getPublishedArticles().find((article) => article.slug === slug);
 }
 
-export function getArticlesByField(field: EditorialFieldSlug): Article[] {
+export function getArticlesByField(field: CategorySlug): Article[] {
   return getPublishedArticles().filter((article) => article.field === field).sort((a, b) => ratingWeight(b.editorialRating) - ratingWeight(a.editorialRating) || dateWeight(b.publishedAt) - dateWeight(a.publishedAt));
 }
 
 export function getFeaturedArticle(): Article | undefined {
-  return getArticleBySlug("the-monster-was-always-the-monster");
+  const currentIssue = getLatestIssue();
+  const candidates = getPublishedArticles().filter(
+    (article) =>
+      (article.issue === currentIssue && article.editorialRating !== null) ||
+      article.author?.trim().toLocaleLowerCase() === "onu",
+  );
+  if (candidates.length === 0) return undefined;
+
+  const dateParts = new Intl.DateTimeFormat("en", {
+    timeZone: "Asia/Dhaka",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const date = ["year", "month", "day"]
+    .map((type) => dateParts.find((part) => part.type === type)?.value ?? "")
+    .join("-");
+  const [year, month, dayOfMonth] = date.split("-").map(Number);
+  const dayNumber = Math.floor(Date.UTC(year, month - 1, dayOfMonth) / 86_400_000);
+  const candidateCount = candidates.length;
+  let step = 7;
+  const greatestCommonDivisor = (left: number, right: number): number =>
+    right === 0 ? left : greatestCommonDivisor(right, left % right);
+  while (greatestCommonDivisor(step, candidateCount) !== 1) {
+    step += 1;
+  }
+  const offset = candidates.reduce((total, article) => total + article.slug.length, 0) % candidateCount;
+  return candidates[(dayNumber * step + offset) % candidateCount];
 }
 
-export function getFieldTitle(field: EditorialFieldSlug): string {
-  return theTen.find((item) => item.slug === field)?.title ?? field;
+export function getAlwaysRecommendedArticles(): Article[] {
+  const articles = getPublishedArticles();
+  const topRated = articles
+    .filter((article) => article.issue === getLatestIssue() && article.editorialRating !== null)
+    .sort((a, b) => ratingWeight(b.editorialRating) - ratingWeight(a.editorialRating))[0];
+  const writtenByOnu = articles.find((article) => article.author?.trim().toLocaleLowerCase() === "onu");
+  return [topRated, writtenByOnu].filter(
+    (article, index, list): article is Article => Boolean(article) && list.findIndex((item) => item?.slug === article?.slug) === index,
+  );
+}
+
+export function getFieldTitle(field: CategorySlug): string {
+  return findCategory(field)?.title ?? field;
 }
 
 export function toArticleCardData(article: Article): ArticleCardData {

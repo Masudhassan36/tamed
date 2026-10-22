@@ -7,20 +7,23 @@ import TenCard from "@/components/TenCard";
 import SectionTitle from "@/components/SectionTitle";
 import LiveDate from "@/components/LiveDate";
 import ArticleSearch from "@/components/ArticleSearch";
-import { getFeaturedArticle, getFieldTitle, getLatestIssue, getPublishedArticles, toArticleCardData } from "@/lib/articles";
+import { getAlwaysRecommendedArticles, getFeaturedArticle, getFieldTitle, getLatestIssue, getPublishedArticles, toArticleCardData } from "@/lib/articles";
 import { theTen } from "@/lib/content";
+
+export const dynamic = "force-dynamic";
 
 export default function Home() {
   const publishedArticles = getPublishedArticles();
-  const latestArticles = publishedArticles;
   const latestIssue = getLatestIssue();
+  const latestArticles = publishedArticles.filter((article) => article.issue === latestIssue);
   const honors = publishedArticles.filter((article) => article.editorialRating === "5+" && article.issue === latestIssue);
   const featuredArticle = getFeaturedArticle();
+  const alwaysRecommended = getAlwaysRecommendedArticles();
 
   return (
     <main>
       <section className="hero page-width" aria-labelledby="hero-title">
-        <div className="hero-topline"><span>Independent literary journal</span><span><LiveDate /> · <em className="hero-issue">Issue 1</em></span></div>
+        <div className="hero-topline"><span>Independent literary journal</span><span><LiveDate /> · <em className="hero-issue">Issue {latestIssue}</em></span></div>
         <div className="hero-center">
           <p className="hero-kicker">Writing that refuses to remain silent</p>
           <h1 id="hero-title" className="hero-wordmark">
@@ -43,6 +46,15 @@ export default function Home() {
         <SectionTitle eyebrow="01 / The journal" title="Today's Feature" number="01" />
         <div id="feature-heading">{featuredArticle && <FeaturedArticle article={featuredArticle} />}</div>
       </section>
+
+      {alwaysRecommended.length > 0 && (
+        <section className="editorial-section page-width always-read-section" aria-labelledby="always-read-heading">
+          <SectionTitle eyebrow="A standing recommendation" title="Always Read" />
+          <div id="always-read-heading" className="article-grid">
+            {alwaysRecommended.map((article) => <ArticleCard key={article.slug} article={toArticleCardData(article)} />)}
+          </div>
+        </section>
+      )}
 
       <section className="editorial-section page-width" id="latest">
         <SectionTitle eyebrow="02 / From the archive" title={`Issue ${latestIssue}`} description="The current issue, with every published piece arranged newest first." number="02" />

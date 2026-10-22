@@ -31,11 +31,11 @@ export default function ArchivePage() {
       </section>
       <section className="archive-section">
         <SectionTitle eyebrow="02 / Issues" title="All Issues" description="Each Wednesday brings a new issue. Browse the issues currently in the journal." />
-        <div className="issue-list">{issues.map((issue) => <a className="issue-row" href={`#issue-${issue}`} key={issue}><span>Issue {issue}</span><span>{articles.filter((article) => article.issue === issue).length} works</span></a>)}</div>
+        <div className="issue-list">{issues.map((issue) => <a className="issue-row" href={issue === 2 ? "/issue-2" : `#issue-${issue}`} key={issue}><span>Issue {issue}</span><span>{articles.filter((article) => article.issue === issue).length} works</span></a>)}</div>
       </section>
       <section className="archive-section">
         <SectionTitle eyebrow="03 / Editors' selection" title="Editorial Rating 5+ Pieces" description="Exceptional work recognized for craft, originality, and impact." />
-        <p className="rating-scale">5+ Exceptional · 5 Outstanding · 4+ Excellent · 4 Strong · 3+ Promising · 3 Developing</p>
+        <p className="rating-scale">5+ Exceptional · 5 Outstanding · 4+ Excellent · 4 Strong · 3+ Promising · 3 Developing · 2+ · 2</p>
         {honors.length > 0 ? (
           <div className="archive-honors">
             {honors.map((article) => <ArticleCard key={article.slug} article={toArticleCardData(article)} />)}

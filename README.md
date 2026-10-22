@@ -6,6 +6,8 @@ Approved logo artwork can be placed in `public/images/` and passed to the shared
 
 Set `NEXT_PUBLIC_SITE_URL` to the canonical HTTPS origin when deploying. Article Open Graph and Twitter cover-image URLs are emitted only when this value is configured; no production domain is assumed.
 
+Issue 2 is available at `/issue-2`. Each published piece opens as a full article on the site; the original submission PDFs are retained only in `.issue2-import/` and are not used as the reading experience.
+
 ## Getting Started
 
 First, run the development server:

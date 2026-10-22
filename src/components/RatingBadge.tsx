@@ -4,7 +4,7 @@ type RatingBadgeProps = {
   rating: EditorialRating | null;
 };
 
-const ratingDescriptions: Record<EditorialRating, string> = {
+const ratingDescriptions: Partial<Record<EditorialRating, string>> = {
   "5+": "Exceptional",
   "5": "Outstanding",
   "4+": "Excellent",
@@ -14,13 +14,14 @@ const ratingDescriptions: Record<EditorialRating, string> = {
 };
 
 export default function RatingBadge({ rating }: RatingBadgeProps) {
+  if (!rating) return null;
   const description = rating ? ratingDescriptions[rating] : undefined;
 
   return (
-    <span className="rating-badge" aria-label={rating ? `Editorial Rating: ${rating}, ${description ?? ""}` : "Editorial Rating: not yet assigned"}>
+    <span className="rating-badge" aria-label={`Editorial Rating: ${rating}${description ? `, ${description}` : ""}`}>
       <span className="rating-label">Editorial Rating:</span>
-      <span className={rating ? "rating-value" : "rating-value rating-pending"} title={description ?? "Not yet assigned"}>
-        {rating ?? "Not assigned"}
+      <span className="rating-value" title={description ?? `Rating ${rating}`}>
+        {rating}
       </span>
     </span>
   );
