@@ -39,14 +39,17 @@ export default function WriterVerification() {
   const [status, setStatus] = useState<VerificationStatus>("idle");
   const statusId = useId();
 
+  function resetStatus(id: string, email: string) {
+    setStatus(!id.trim() && !email.trim() ? "idle"
+      : !id.trim() || !EMAIL_PATTERN.test(email.trim()) ? "incomplete" : "checking");
+  }
+
   useEffect(() => {
     const id = bcwoId.trim();
     const email = verificationEmail.trim();
-    if (!id && !email) { setStatus("idle"); return; }
-    if (!id || !EMAIL_PATTERN.test(email)) { setStatus("incomplete"); return; }
+    if (!id || !EMAIL_PATTERN.test(email)) return;
 
     const controller = new AbortController();
-    setStatus("checking");
     const timer = window.setTimeout(async () => {
       try {
         const response = await fetch("/api/verify-writer", {
@@ -55,12 +58,14 @@ export default function WriterVerification() {
           body: JSON.stringify({ bcwoId: id, verificationEmail: email }),
           signal: controller.signal,
         });
+        if (!response.ok) throw new Error("Verification request failed");
         const result = await response.json() as { status?: string };
+        if (controller.signal.aborted) return;
         if (result.status === "verified") setStatus("verified");
         else if (result.status === "unavailable") setStatus("unavailable");
         else setStatus("not-found");
       } catch (error) {
-        if (!(error instanceof DOMException && error.name === "AbortError")) setStatus("unavailable");
+        if (!controller.signal.aborted && !(error instanceof DOMException && error.name === "AbortError")) setStatus("unavailable");
       }
     }, SETTLE_MS);
 
@@ -78,7 +83,10 @@ export default function WriterVerification() {
           required
           autoComplete="off"
           value={bcwoId}
-          onChange={(event) => setBcwoId(event.target.value)}
+          onChange={(event) => {
+            setBcwoId(event.target.value);
+            resetStatus(event.target.value, verificationEmail);
+          }}
           placeholder="Enter your BCWO Registration ID or Team ID"
           aria-describedby={message ? statusId : undefined}
         />
@@ -91,7 +99,10 @@ export default function WriterVerification() {
           required
           autoComplete="email"
           value={verificationEmail}
-          onChange={(event) => setVerificationEmail(event.target.value)}
+          onChange={(event) => {
+            setVerificationEmail(event.target.value);
+            resetStatus(bcwoId, event.target.value);
+          }}
           placeholder="Email used for BCWO registration"
           aria-describedby={message ? statusId : undefined}
         />

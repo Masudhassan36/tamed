@@ -1,33 +1,31 @@
 import type { ReactNode } from "react";
 import type { Article, RichContentBlock, RichContentRun } from "@/lib/articles";
-import { getArticleLines, isVerseArticle } from "@/lib/articles";
+import { getArticleLines, hasManuscriptText, isVerseArticle } from "@/lib/articles";
+import { cleanTypography, mergeLeadingPunctuation, splitGluedParagraphs, splitOverlongParagraph } from "@/lib/typography";
 
 type ArticleBodyProps = { article: Article };
 type DisplayBlock = { kind: "paragraph" | "quote" | "heading" | "break"; runs?: RichContentRun[] };
 
+const HEADING_MAX_LENGTH = 64;
+const HEADING_MAX_WORDS = 9;
 const headingPattern = /^[A-Z][^.!?,:;]{1,64}$/;
 const quotePattern = /^[“"‘«][\s\S]*[”"’»]$/;
 const dialoguePattern = /^[“"][\s\S]*[”"][\s\S]{0,100}$/;
 
-function cleanTypography(value: string): string {
-  return value
-    .replace(/â€™/g, "’")
-    .replace(/â€œ/g, "“")
-    .replace(/â€/g, "”")
-    .replace(/â€“/g, "–")
-    .replace(/â€”/g, "—")
-    .replace(/â€¦/g, "…")
-    .replace(/Â/g, "");
+function normalise(value: string): string {
+  return value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
 
-function normalise(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+function isShortHeadline(value: string): boolean {
+  const text = value.trim();
+  if (!text) return false;
+  return text.length <= HEADING_MAX_LENGTH && text.split(/\s+/).length <= HEADING_MAX_WORDS && headingPattern.test(text);
 }
 
 function isHeading(text: string, article: Article): boolean {
   const value = text.trim();
   if (!value || normalise(value) === normalise(article.title)) return false;
-  return value.length <= 64 && value.split(/\s+/).length <= 9 && headingPattern.test(value);
+  return isShortHeadline(value);
 }
 
 function renderRuns(runs: RichContentRun[], keyPrefix: string) {
@@ -50,32 +48,58 @@ function classify(text: string, article: Article): DisplayBlock["kind"] {
 
 function plainBlocks(article: Article): DisplayBlock[] {
   if (isVerseArticle(article)) {
-    return getArticleLines(article).map((line) => line.trimEnd() ? { kind: "paragraph", runs: [{ text: line.trimEnd() }] } : { kind: "break" });
+    return getArticleLines(article).map((line) =>
+      line.trimEnd() ? { kind: "paragraph", runs: [{ text: line.trimEnd() }] } : { kind: "break" },
+    );
   }
   const blocks: DisplayBlock[] = [];
+  // Issue 2's imported PDF content contains physical lines, as do manuscripts.
+  // Earlier web articles and fallback excerpts already store whole paragraphs.
+  const wrapped = hasManuscriptText(article)
+    || (article.id.startsWith("TMD-") && article.issue >= 2)
+    || article.content.some((line) => !line.trim() || /[\r\n]/.test(line));
   let lines: string[] = [];
   const flush = () => {
-    const text = cleanTypography(lines.join(" ").replace(/\s+/g, " ").trim());
-    if (text) blocks.push({ kind: classify(text, article), runs: [{ text }] });
+    const text = cleanTypography(lines.join(" "));
     lines = [];
+    for (const paragraph of splitGluedParagraphs(text).flatMap((part) => splitOverlongParagraph(part))) {
+      blocks.push({ kind: classify(paragraph, article), runs: [{ text: paragraph }] });
+    }
   };
-  for (const line of getArticleLines(article)) {
-    if (!line.trim()) { flush(); blocks.push({ kind: "break" }); continue; }
-    if (isHeading(line, article)) { flush(); blocks.push({ kind: "heading", runs: [{ text: line.trim() }] }); continue; }
+  const sourceLines = wrapped ? getArticleLines(article) : mergeLeadingPunctuation(getArticleLines(article));
+  for (const [index, line] of sourceLines.entries()) {
+    if (!line.trim()) {
+      flush();
+      blocks.push({ kind: "break" });
+      continue;
+    }
+    if (normalise(line) === normalise(article.title)) {
+      flush();
+      blocks.push({ kind: "paragraph", runs: [{ text: line.trim() }] });
+      continue;
+    }
+    const standalone = !sourceLines[index + 1]?.trim() || line === line.toUpperCase();
+    if (isHeading(line, article) && (!wrapped || standalone)) {
+      flush();
+      blocks.push({ kind: "heading", runs: [{ text: line.trim() }] });
+      continue;
+    }
     lines.push(line.trim());
+    if (!wrapped) flush();
   }
   flush();
   return blocks;
 }
 
 function richBlocks(article: Article, richContent: RichContentBlock[]): DisplayBlock[] {
-  const blocks: DisplayBlock[] = richContent.map((block) => {
+  return richContent.map((block) => {
     const runs = block?.filter((run) => run.text.length > 0) ?? [];
     if (!runs.length) return { kind: "break" };
     const text = cleanTypography(runs.map((run) => run.text).join(""));
-    return { kind: classify(text, article), runs };
+    // A manuscript sets its section titles in bold; trust that over guesswork.
+    const boldHeadline = !isVerseArticle(article) && runs.every((run) => run.bold) && isShortHeadline(text);
+    return { kind: boldHeadline ? "heading" : classify(text, article), runs };
   });
-  return blocks;
 }
 
 function withoutRepeatedTitle(article: Article, blocks: DisplayBlock[]): DisplayBlock[] {

@@ -1,6 +1,7 @@
 import articleRecords from "./articles-data.json";
 import ratedSubmissionRecords from "./rated-submissions.json";
 import manuscriptRecords from "./manuscripts.json";
+import richContentRecords from "./rich-content.json";
 import { findCategory } from "./content";
 import type { CategorySlug } from "./content";
 
@@ -66,10 +67,13 @@ export type ArticleCardData = Pick<
   issue: number;
 };
 
+const richContentById = richContentRecords as unknown as Readonly<Record<string, RichContentBlock[]>>;
+
 const allArticles = (articleRecords as unknown as Article[]).map((article) => ({
   ...article,
   publishedAt: normalizePublicationDate(article.publishedAt),
   issue: article.issue ?? 1,
+  richContent: article.richContent?.length ? article.richContent : richContentById[article.id],
 }));
 
 // Rated submissions are fed from rated-submissions.json. The manuscript text is
@@ -131,7 +135,14 @@ export function isVerseArticle(article: Article): boolean {
   return article.field === "poetry";
 }
 
-const normaliseHeading = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+// True when we hold the writer's original text rather than a curated excerpt.
+// Manuscript lines are soft-wrapped, so they must be joined back into
+// paragraphs; stored content blocks are already one paragraph each.
+export function hasManuscriptText(article: Article): boolean {
+  return Boolean(manuscriptTextById[article.id]);
+}
+
+const normaliseHeading = (value: string) => value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 
 const STANDFIRST_LIMIT = 180;
 
@@ -177,7 +188,7 @@ const ratedSubmissions: Article[] = (ratedSubmissionRecords as Partial<RatedSubm
       coverImage: resolveCoverImage(record.cover),
       imageAlt: `Cover image for ${record.title}`,
       content: lines,
-      richContent: record.richContent,
+      richContent: record.richContent?.length ? record.richContent : richContentById[record.id],
       language: record.language ?? "English",
       publishedAt: ISSUE_ONE_DATE,
       issue: 1,
