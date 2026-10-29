@@ -30,7 +30,10 @@ function isHeading(text: string, article: Article): boolean {
 
 function renderRuns(runs: RichContentRun[], keyPrefix: string) {
   return runs.map((run, index) => {
-    let content: ReactNode = cleanTypography(run.text);
+    let content: ReactNode = run.text;
+    if (run.strike) content = <s>{content}</s>;
+    if (run.verticalAlign === "super") content = <sup>{content}</sup>;
+    if (run.verticalAlign === "sub") content = <sub>{content}</sub>;
     if (run.underline) content = <u>{content}</u>;
     if (run.italic) content = <em>{content}</em>;
     if (run.bold) content = <strong>{content}</strong>;
@@ -91,14 +94,13 @@ function plainBlocks(article: Article): DisplayBlock[] {
   return blocks;
 }
 
-function richBlocks(article: Article, richContent: RichContentBlock[]): DisplayBlock[] {
+function richBlocks(richContent: RichContentBlock[]): DisplayBlock[] {
   return richContent.map((block) => {
     const runs = block?.filter((run) => run.text.length > 0) ?? [];
     if (!runs.length) return { kind: "break" };
-    const text = cleanTypography(runs.map((run) => run.text).join(""));
-    // A manuscript sets its section titles in bold; trust that over guesswork.
-    const boldHeadline = !isVerseArticle(article) && runs.every((run) => run.bold) && isShortHeadline(text);
-    return { kind: boldHeadline ? "heading" : classify(text, article), runs };
+    // Rich manuscripts already carry their emphasis. Inference here would
+    // italicize ordinary dialogue or restyle a short sentence as a heading.
+    return { kind: "paragraph", runs };
   });
 }
 
@@ -111,9 +113,27 @@ function withoutRepeatedTitle(article: Article, blocks: DisplayBlock[]): Display
 }
 
 export default function ArticleBody({ article }: ArticleBodyProps) {
+  if (article.manuscriptParagraphs?.length) {
+    return (
+      <div className="article-body article-body--original" aria-label="Published manuscript" lang={article.language?.toLowerCase() === "bangla" || article.language?.toLowerCase() === "bengali" ? "bn" : undefined}>
+        {article.manuscriptParagraphs.map((paragraph, index) => paragraph.separator ? <hr className="manuscript-divider" key={index} /> : (
+          <p key={index} style={{
+            textAlign: paragraph.alignment,
+            marginTop: paragraph.spaceBefore === undefined ? undefined : `${paragraph.spaceBefore}pt`,
+            marginBottom: paragraph.spaceAfter === undefined ? undefined : `${paragraph.spaceAfter}pt`,
+            paddingLeft: paragraph.indentLeft === undefined ? undefined : `${paragraph.indentLeft}pt`,
+            paddingRight: paragraph.indentRight === undefined ? undefined : `${paragraph.indentRight}pt`,
+            textIndent: paragraph.indentFirst === undefined ? undefined : `${paragraph.indentFirst}pt`,
+          }}>
+            {paragraph.runs.length ? renderRuns(paragraph.runs, `original-${index}`) : <br />}
+          </p>
+        ))}
+      </div>
+    );
+  }
   const isVerse = isVerseArticle(article);
   const bodyClass = isVerse ? "article-body article-body--verse" : "article-body article-body--prose";
-  const sourceBlocks = article.richContent?.length ? richBlocks(article, article.richContent) : plainBlocks(article);
+  const sourceBlocks = article.richContent?.length ? richBlocks(article.richContent) : plainBlocks(article);
   const blocks = withoutRepeatedTitle(article, sourceBlocks);
 
   return (

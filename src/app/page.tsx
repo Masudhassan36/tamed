@@ -1,13 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import ArticleCard from "@/components/ArticleCard";
-import FeaturedArticle from "@/components/FeaturedArticle";
 import RatingBadge from "@/components/RatingBadge";
 import TenCard from "@/components/TenCard";
 import SectionTitle from "@/components/SectionTitle";
 import LiveDate from "@/components/LiveDate";
 import ArticleSearch from "@/components/ArticleSearch";
-import { getAlwaysRecommendedArticles, getFeaturedArticle, getFieldTitle, getLatestIssue, getPublishedArticles, toArticleCardData } from "@/lib/articles";
+import { getAlwaysRecommendedArticles, getFeaturedArticles, getFieldTitle, getLatestIssue, getPublishedArticles, toArticleCardData } from "@/lib/articles";
 import { theTen } from "@/lib/content";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +16,7 @@ export default function Home() {
   const latestIssue = getLatestIssue();
   const latestArticles = publishedArticles.filter((article) => article.issue === latestIssue);
   const honors = publishedArticles.filter((article) => article.editorialRating === "5+" && article.issue === latestIssue);
-  const featuredArticle = getFeaturedArticle();
+  const featuredArticles = getFeaturedArticles();
   const alwaysRecommended = getAlwaysRecommendedArticles();
 
   return (
@@ -43,8 +42,10 @@ export default function Home() {
       </section>
 
       <section className="editorial-section page-width" aria-labelledby="feature-heading">
-        <SectionTitle eyebrow="01 / The journal" title="Today's Feature" number="01" />
-        <div id="feature-heading">{featuredArticle && <FeaturedArticle article={featuredArticle} />}</div>
+        <SectionTitle eyebrow="01 / The journal" title="Featured" number="01" />
+        <div id="feature-heading" className="article-grid">
+          {featuredArticles.map((article) => <ArticleCard key={article.slug} article={toArticleCardData(article)} />)}
+        </div>
       </section>
 
       {alwaysRecommended.length > 0 && (

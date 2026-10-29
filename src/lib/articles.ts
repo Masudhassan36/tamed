@@ -2,6 +2,7 @@ import articleRecords from "./articles-data.json";
 import ratedSubmissionRecords from "./rated-submissions.json";
 import manuscriptRecords from "./manuscripts.json";
 import richContentRecords from "./rich-content.json";
+import issueThreeRecords from "./issue3-articles.json";
 import { findCategory } from "./content";
 import type { CategorySlug } from "./content";
 
@@ -44,6 +45,7 @@ export interface Article {
   imageAlt: string;
   content: string[];
   richContent?: RichContentBlock[];
+  manuscriptParagraphs?: ManuscriptParagraph[];
   language: string | null;
   publishedAt: string | null;
   issue: number;
@@ -55,8 +57,18 @@ export interface Article {
   originalFile?: string;
 }
 
-export type RichContentRun = { text: string; bold?: boolean; italic?: boolean; underline?: boolean };
+export type RichContentRun = { text: string; bold?: boolean; italic?: boolean; underline?: boolean; strike?: boolean; verticalAlign?: "super" | "sub" };
 export type RichContentBlock = RichContentRun[];
+export type ManuscriptParagraph = {
+  runs: RichContentRun[];
+  separator?: boolean;
+  alignment?: "left" | "center" | "right" | "justify";
+  spaceBefore?: number;
+  spaceAfter?: number;
+  indentLeft?: number;
+  indentRight?: number;
+  indentFirst?: number;
+};
 
 export type ArticleCardData = Pick<
   Article,
@@ -200,7 +212,7 @@ const ratedSubmissions: Article[] = (ratedSubmissionRecords as Partial<RatedSubm
     };
   });
 
-const publishedFeed = [...allArticles, ...ratedSubmissions];
+const publishedFeed = [...allArticles, ...ratedSubmissions, ...(issueThreeRecords as unknown as Article[])];
 const ratingWeight = (rating: EditorialRating | null) => rating ? ({ "5+": 7, "5": 6, "4+": 5, "4": 4, "3+": 3, "3": 2, "2+": 1, "2": 0.5 }[rating]) : 0;
 const dateWeight = (value: string | null) => value ? Date.parse(value.length === 7 ? `${value}-01` : value) || 0 : 0;
 const minimumPublicationRating: EditorialRating = "3";
@@ -269,44 +281,24 @@ export function getArticlesByField(field: CategorySlug): Article[] {
   return getPublishedArticles().filter((article) => article.field === field).sort((a, b) => ratingWeight(b.editorialRating) - ratingWeight(a.editorialRating) || dateWeight(b.publishedAt) - dateWeight(a.publishedAt));
 }
 
-export function getFeaturedArticle(): Article | undefined {
-  const currentIssue = getLatestIssue();
-  const candidates = getPublishedArticles().filter(
-    (article) =>
-      (article.issue === currentIssue && article.editorialRating !== null) ||
-      article.author?.trim().toLocaleLowerCase() === "onu",
-  );
-  if (candidates.length === 0) return undefined;
-
-  const dateParts = new Intl.DateTimeFormat("en", {
-    timeZone: "Asia/Dhaka",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const date = ["year", "month", "day"]
-    .map((type) => dateParts.find((part) => part.type === type)?.value ?? "")
-    .join("-");
-  const [year, month, dayOfMonth] = date.split("-").map(Number);
-  const dayNumber = Math.floor(Date.UTC(year, month - 1, dayOfMonth) / 86_400_000);
-  const candidateCount = candidates.length;
-  let step = 7;
-  const greatestCommonDivisor = (left: number, right: number): number =>
-    right === 0 ? left : greatestCommonDivisor(right, left % right);
-  while (greatestCommonDivisor(step, candidateCount) !== 1) {
-    step += 1;
+export function getFeaturedArticles(count = 8): Article[] {
+  const candidates = getPublishedArticles();
+  // Sample without replacement on each homepage request.
+  for (let index = candidates.length - 1; index > 0; index -= 1) {
+    const other = Math.floor(Math.random() * (index + 1));
+    [candidates[index], candidates[other]] = [candidates[other], candidates[index]];
   }
-  const offset = candidates.reduce((total, article) => total + article.slug.length, 0) % candidateCount;
-  return candidates[(dayNumber * step + offset) % candidateCount];
+  return candidates.slice(0, count);
 }
 
 export function getAlwaysRecommendedArticles(): Article[] {
   const articles = getPublishedArticles();
   const topRated = articles
-    .filter((article) => article.issue === getLatestIssue() && article.editorialRating !== null)
+    .filter((article) => article.issue === 2 && article.editorialRating !== null)
     .sort((a, b) => ratingWeight(b.editorialRating) - ratingWeight(a.editorialRating))[0];
   const writtenByOnu = articles.find((article) => article.author?.trim().toLocaleLowerCase() === "onu");
-  return [topRated, writtenByOnu].filter(
+  const exceptional = articles.filter((article) => article.issue >= 3 && article.editorialRating === "5+");
+  return [topRated, writtenByOnu, ...exceptional].filter(
     (article, index, list): article is Article => Boolean(article) && list.findIndex((item) => item?.slug === article?.slug) === index,
   );
 }
