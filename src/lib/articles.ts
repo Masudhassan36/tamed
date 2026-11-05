@@ -3,6 +3,7 @@ import ratedSubmissionRecords from "./rated-submissions.json";
 import manuscriptRecords from "./manuscripts.json";
 import richContentRecords from "./rich-content.json";
 import issueThreeRecords from "./issue3-articles.json";
+import issueFourRecords from "./issue4-articles.json";
 import { findCategory } from "./content";
 import type { CategorySlug } from "./content";
 
@@ -212,7 +213,12 @@ const ratedSubmissions: Article[] = (ratedSubmissionRecords as Partial<RatedSubm
     };
   });
 
-const publishedFeed = [...allArticles, ...ratedSubmissions, ...(issueThreeRecords as unknown as Article[])];
+const publishedFeed = [
+  ...allArticles,
+  ...ratedSubmissions,
+  ...(issueThreeRecords as unknown as Article[]),
+  ...(issueFourRecords as Article[]),
+];
 const ratingWeight = (rating: EditorialRating | null) => rating ? ({ "5+": 7, "5": 6, "4+": 5, "4": 4, "3+": 3, "3": 2, "2+": 1, "2": 0.5 }[rating]) : 0;
 const dateWeight = (value: string | null) => value ? Date.parse(value.length === 7 ? `${value}-01` : value) || 0 : 0;
 const minimumPublicationRating: EditorialRating = "3";
