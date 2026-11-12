@@ -164,6 +164,12 @@ button, input, select { font: inherit; }
 .manuscript-break { display: block; height: 1.15em; }
 .manuscript-text { white-space: pre-wrap; }
 .article-body--original > p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.article-body--original p { white-space: pre-wrap; }
+.article-body--original .manuscript-page-start { padding-top: 24pt; }
+.manuscript-table-scroll { overflow-x: auto; }
+.manuscript-table { border-collapse: collapse; width: 100%; }
+.manuscript-table td { vertical-align: top; padding: 6pt; }
+.manuscript-table p { margin: 0; }
 .manuscript-divider { margin: 28px 0; border: 0; border-top: 1px solid var(--rule); }
 .editors-note { margin-top: 56px; padding: 19px 0 0; border-top: 1px solid var(--ink); }
 .editors-note > p:last-child { margin: 9px 0 0; font-family: var(--serif); font-size: 16px; }

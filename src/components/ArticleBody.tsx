@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { Article, RichContentBlock, RichContentRun } from "@/lib/articles";
+import type { Article, ManuscriptParagraph, RichContentBlock, RichContentRun } from "@/lib/articles";
 import { getArticleLines, hasManuscriptText, isVerseArticle } from "@/lib/articles";
 import { cleanTypography, mergeLeadingPunctuation, splitGluedParagraphs, splitOverlongParagraph } from "@/lib/typography";
 
@@ -37,7 +37,13 @@ function renderRuns(runs: RichContentRun[], keyPrefix: string) {
     if (run.underline) content = <u>{content}</u>;
     if (run.italic) content = <em>{content}</em>;
     if (run.bold) content = <strong>{content}</strong>;
-    return <span className="manuscript-run" key={`${keyPrefix}-${index}`}>{content}</span>;
+    return <span className="manuscript-run" style={{
+      fontFamily: run.fontFamily ? `"${run.fontFamily.replaceAll('"', '')}", serif` : undefined,
+      fontSize: run.fontSize === undefined ? undefined : `${run.fontSize}pt`,
+      color: run.color,
+      fontWeight: run.bold ? 700 : 400,
+      fontStyle: run.italic ? "italic" : "normal",
+    }} key={`${keyPrefix}-${index}`}>{content}</span>;
   });
 }
 
@@ -116,18 +122,7 @@ export default function ArticleBody({ article }: ArticleBodyProps) {
   if (article.manuscriptParagraphs?.length) {
     return (
       <div className="article-body article-body--original" aria-label="Published manuscript" lang={article.language?.toLowerCase() === "bangla" || article.language?.toLowerCase() === "bengali" ? "bn" : undefined}>
-        {article.manuscriptParagraphs.map((paragraph, index) => paragraph.separator ? <hr className="manuscript-divider" key={index} /> : (
-          <p key={index} style={{
-            textAlign: paragraph.alignment,
-            marginTop: paragraph.spaceBefore === undefined ? undefined : `${paragraph.spaceBefore}pt`,
-            marginBottom: paragraph.spaceAfter === undefined ? undefined : `${paragraph.spaceAfter}pt`,
-            paddingLeft: paragraph.indentLeft === undefined ? undefined : `${paragraph.indentLeft}pt`,
-            paddingRight: paragraph.indentRight === undefined ? undefined : `${paragraph.indentRight}pt`,
-            textIndent: paragraph.indentFirst === undefined ? undefined : `${paragraph.indentFirst}pt`,
-          }}>
-            {paragraph.runs.length ? renderRuns(paragraph.runs, `original-${index}`) : <br />}
-          </p>
-        ))}
+        {article.manuscriptParagraphs.map((paragraph, index) => renderManuscriptParagraph(paragraph, `original-${index}`))}
       </div>
     );
   }
@@ -147,4 +142,28 @@ export default function ArticleBody({ article }: ArticleBodyProps) {
       })}
     </div>
   );
+}
+
+function renderManuscriptParagraph(paragraph: ManuscriptParagraph, key: string): ReactNode {
+  if (paragraph.table) return (
+    <div className="manuscript-table-scroll" key={key}>
+      <table className="manuscript-table"><tbody>
+        {paragraph.table.map((row, rowIndex) => <tr key={rowIndex}>
+          {row.map((cell, cellIndex) => <td key={cellIndex}>
+            {cell.map((block, blockIndex) => renderManuscriptParagraph(block, `${key}-${rowIndex}-${cellIndex}-${blockIndex}`))}
+          </td>)}
+        </tr>)}
+      </tbody></table>
+    </div>
+  );
+  if (paragraph.separator) return <hr className="manuscript-divider" key={key} />;
+  return <p key={key} className={paragraph.pageBreakBefore ? "manuscript-page-start" : undefined} style={{
+    textAlign: paragraph.alignment,
+    marginTop: paragraph.spaceBefore === undefined ? undefined : `${paragraph.spaceBefore}pt`,
+    marginBottom: paragraph.spaceAfter === undefined ? undefined : `${paragraph.spaceAfter}pt`,
+    paddingLeft: paragraph.indentLeft === undefined ? undefined : `${paragraph.indentLeft}pt`,
+    paddingRight: paragraph.indentRight === undefined ? undefined : `${paragraph.indentRight}pt`,
+    textIndent: paragraph.indentFirst === undefined ? undefined : `${paragraph.indentFirst}pt`,
+    lineHeight: paragraph.lineHeight ?? (paragraph.sourceLine ? "1" : undefined),
+  }}>{paragraph.runs.length ? renderRuns(paragraph.runs, key) : <br />}</p>;
 }

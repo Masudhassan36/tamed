@@ -4,6 +4,8 @@ import manuscriptRecords from "./manuscripts.json";
 import richContentRecords from "./rich-content.json";
 import issueThreeRecords from "./issue3-articles.json";
 import issueFourRecords from "./issue4-articles.json";
+import issueFiveRecords from "./issue5-articles.json";
+import manuscriptFormatRecords from "./manuscript-formats.json";
 import { findCategory } from "./content";
 import type { CategorySlug } from "./content";
 
@@ -58,7 +60,7 @@ export interface Article {
   originalFile?: string;
 }
 
-export type RichContentRun = { text: string; bold?: boolean; italic?: boolean; underline?: boolean; strike?: boolean; verticalAlign?: "super" | "sub" };
+export type RichContentRun = { text: string; bold?: boolean; italic?: boolean; underline?: boolean; strike?: boolean; verticalAlign?: "super" | "sub"; fontFamily?: string; fontSize?: number; color?: string };
 export type RichContentBlock = RichContentRun[];
 export type ManuscriptParagraph = {
   runs: RichContentRun[];
@@ -69,6 +71,10 @@ export type ManuscriptParagraph = {
   indentLeft?: number;
   indentRight?: number;
   indentFirst?: number;
+  lineHeight?: string;
+  sourceLine?: boolean;
+  pageBreakBefore?: boolean;
+  table?: ManuscriptParagraph[][][];
 };
 
 export type ArticleCardData = Pick<
@@ -218,7 +224,11 @@ const publishedFeed = [
   ...ratedSubmissions,
   ...(issueThreeRecords as unknown as Article[]),
   ...(issueFourRecords as Article[]),
-];
+  ...(issueFiveRecords as unknown as Article[]),
+].map((article) => {
+  const paragraphs = (manuscriptFormatRecords as unknown as Record<string, ManuscriptParagraph[]>)[article.id];
+  return paragraphs ? { ...article, manuscriptParagraphs: paragraphs } : article;
+});
 const ratingWeight = (rating: EditorialRating | null) => rating ? ({ "5+": 7, "5": 6, "4+": 5, "4": 4, "3+": 3, "3": 2, "2+": 1, "2": 0.5 }[rating]) : 0;
 const dateWeight = (value: string | null) => value ? Date.parse(value.length === 7 ? `${value}-01` : value) || 0 : 0;
 const minimumPublicationRating: EditorialRating = "3";
