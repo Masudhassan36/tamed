@@ -407,7 +407,7 @@ button, input, select { font: inherit; }
 .verify-status:empty { display: none; }
 .verify-icon { flex: 0 0 auto; }
 .verify-status--verified { color: #2d7047; }
-.verify-status--not-found { color: #9c3838; }
+.verify-status--not-found, .verify-status--inactive, .verify-status--limit-reached { color: #9c3838; }
 .verify-status--checking, .verify-status--unavailable { color: var(--muted); }
 
 /* --- A serif line under a legend, in place of any explanatory list --- */

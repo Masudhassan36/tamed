@@ -8,6 +8,14 @@ Set `NEXT_PUBLIC_SITE_URL` to the canonical HTTPS origin when deploying. Article
 
 Issue 2 is available at `/issue-2`. Each published piece opens as a full article on the site; the original submission PDFs are retained only in `.issue2-import/` and are not used as the reading experience.
 
+## Updating the TAMED submission service
+
+1. In **TAMED Submissions Database → Extensions → Apps Script**, replace the submission API code with `apps-script/tamed-submission.gs` and save. Run `testSetup` and check that both tabs and the Drive folder are reachable.
+2. Run `installUploadCleanup` once as the deployment owner. This schedules cleanup of staging sessions older than 24 hours. Staging uses a private Drive folder created by the script.
+3. In **Deploy → Manage deployments**, edit the existing web app deployment, choose **New version**, and deploy. Keep the same execution identity, access settings, and `/exec` URL. Publish the website after the script update. The site uses its existing `GOOGLE_SCRIPT_URL` environment variable.
+
+The form sends uploads in 3 MB parts and accepts 20 MB total for the manuscript and cover. The script stores the original files in the existing Drive subfolders. The sheet columns stay in their current order, and a note on each new submission ID links it to the upload session so a retry can recover the same receipt.
+
 ## Getting Started
 
 First, run the development server:

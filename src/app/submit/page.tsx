@@ -1,26 +1,19 @@
 "use client";
 
-import { startTransition, useActionState, useState } from "react";
+import { useRef, useState } from "react";
 import CategorySelect from "@/components/CategorySelect";
 import WriterVerification from "@/components/WriterVerification";
-import { submitWork, type SubmitFormState } from "./actions";
-
-const initialState: SubmitFormState = {};
+import { MAX_ATTACHMENT_BYTES, uploadSizeMessage, type SubmissionResponse } from "@/lib/submission-upload";
+import { attachmentMetadata, postUpload, uploadAttachment, validateCover, validateManuscript } from "./upload";
 
 const LANGUAGES = ["English", "Bengali"] as const;
 
-function fileData(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
-
 export default function SubmitPage() {
-  const [state, formAction, pending] = useActionState(submitWork, initialState);
+  const [state, setState] = useState<SubmissionResponse>({});
+  const [progress, setProgress] = useState("");
   const [uploadError, setUploadError] = useState("");
+  const inFlight = useRef(false);
+  const uploadId = useRef<string | undefined>(undefined);
 
   if (state.submissionId) {
     return (
@@ -39,32 +32,46 @@ export default function SubmitPage() {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (inFlight.current) return;
     setUploadError("");
-    const form = event.currentTarget;
-    const manuscript = form.elements.namedItem("manuscript") as HTMLInputElement;
-    const coverImage = form.elements.namedItem("coverImage") as HTMLInputElement;
-    const manuscriptFile = manuscript.files?.[0];
-    if (!manuscriptFile) { setUploadError("Please attach your manuscript before submitting."); return; }
-    const coverFile = coverImage.files?.[0];
-    if (!coverFile) { setUploadError("A cover image is required. Please attach one before submitting."); return; }
-    if (!coverFile.type.startsWith("image/")) { setUploadError("Your cover image must be an image file."); return; }
+    const data = new FormData(event.currentTarget);
+    const manuscriptFile = data.get("manuscript");
+    const coverFile = data.get("coverImage");
+    if (!(manuscriptFile instanceof File) || !manuscriptFile.size) { setUploadError("Attach a nonempty manuscript."); return; }
+    if (!(coverFile instanceof File) || !coverFile.size) { setUploadError("Attach a nonempty cover image."); return; }
+    if (manuscriptFile.size + coverFile.size > MAX_ATTACHMENT_BYTES) { setUploadError(uploadSizeMessage); return; }
+    inFlight.current = true;
+    setProgress("Checking attachments…");
     try {
-      const submittedData = new FormData(form);
-      submittedData.delete("manuscript");
-      submittedData.delete("coverImage");
-      submittedData.append("manuscript", JSON.stringify({ name: manuscriptFile.name, type: manuscriptFile.type, data: await fileData(manuscriptFile) }));
-      submittedData.append("manuscriptName", manuscriptFile.name);
-      submittedData.append("manuscriptType", manuscriptFile.type);
-      submittedData.append("manuscriptSize", String(manuscriptFile.size));
-      submittedData.append("manuscriptLastModified", String(manuscriptFile.lastModified));
-      submittedData.append("coverImage", JSON.stringify({ name: coverFile.name, type: coverFile.type, data: await fileData(coverFile) }));
-      submittedData.append("coverImageName", coverFile.name);
-      submittedData.append("coverImageType", coverFile.type);
-      submittedData.append("coverImageSize", String(coverFile.size));
-      submittedData.append("coverImageLastModified", String(coverFile.lastModified));
-      startTransition(() => formAction(submittedData));
-    } catch {
-      setUploadError("Your files could not be uploaded. Please try again.");
+      const cover = attachmentMetadata(coverFile);
+      await validateManuscript(manuscriptFile);
+      await validateCover(coverFile, cover.type);
+      uploadId.current ??= crypto.randomUUID();
+      data.set("uploadId", uploadId.current);
+      data.set("action", "beginUpload");
+      data.set("manuscript", JSON.stringify(attachmentMetadata(manuscriptFile)));
+      data.set("coverImage", JSON.stringify(cover));
+      const session = new FormData();
+      for (const key of ["uploadId", "bcwoId", "verificationEmail"]) session.set(key, data.get(key)!);
+      setProgress("Checking your BCWO registration…");
+      const started = await postUpload(data);
+      const receipt = started.submissionId
+        ?? await uploadAttachment(session, "manuscript", manuscriptFile, setProgress)
+        ?? await uploadAttachment(session, "coverImage", coverFile, setProgress);
+      if (receipt) {
+        setState({ submissionId: receipt });
+        return;
+      }
+      setProgress("Saving your submission and requesting a receipt…");
+      session.set("action", "finishUpload");
+      setState(await postUpload(session));
+    } catch (error) {
+      setUploadError(error instanceof Error && !(error instanceof TypeError) && !(error instanceof DOMException)
+        ? error.message
+        : "The connection was interrupted. Click Submit work again with the same details to resume or check for a receipt.");
+    } finally {
+      setProgress("");
+      inFlight.current = false;
     }
   }
 
@@ -77,8 +84,8 @@ export default function SubmitPage() {
         <p className="privacy-note">Contact and delivery details are for the TAMED editorial team only and never appear in articles, the public archive, or author profiles. Anonymous publication conceals your identity from readers.</p>
       </header>
 
-      <form className="submission-form" onSubmit={handleSubmit}>
-        <fieldset>
+      <form className="submission-form" onSubmit={handleSubmit} onChange={() => { uploadId.current = undefined; }}>
+        <fieldset disabled={Boolean(progress)}>
           <legend>00 / Eligibility</legend>
           <div className="form-grid">
             <WriterVerification />
@@ -86,7 +93,7 @@ export default function SubmitPage() {
           <p className="section-note">TAMED is open to writers registered with the Bangladesh Creative Writing Olympiad.</p>
         </fieldset>
 
-        <fieldset>
+        <fieldset disabled={Boolean(progress)}>
           <legend>01 / The writer</legend>
           <div className="form-grid">
             <label>Full Name <span>optional</span><input name="writerName" autoComplete="name" /></label>
@@ -98,7 +105,7 @@ export default function SubmitPage() {
           </div>
         </fieldset>
 
-        <fieldset>
+        <fieldset disabled={Boolean(progress)}>
           <legend>02 / Publication</legend>
           <div className="choice-row">
             <label><input type="radio" name="publishPreference" value="real-name" required /> Real name</label>
@@ -108,7 +115,7 @@ export default function SubmitPage() {
           <p className="section-note">How your name should appear if the work is published.</p>
         </fieldset>
 
-        <fieldset>
+        <fieldset disabled={Boolean(progress)}>
           <legend>03 / The work</legend>
           <div className="form-grid">
             <label className="full-field">Title<input name="title" required /></label>
@@ -120,11 +127,11 @@ export default function SubmitPage() {
             </label>
             <CategorySelect />
             <label className="full-field">Manuscript Upload<input type="file" name="manuscript" accept=".doc,.docx,.pdf,.txt" required /><span className="field-note">DOC, DOCX, PDF, or TXT.</span></label>
-            <label className="full-field">Cover Image Upload<input type="file" name="coverImage" accept="image/*" required /><span className="field-note">Required. The visual presentation is part of the reading experience — strong writing with weak visual presentation may be returned for revision before publication.</span></label>
+            <label className="full-field">Cover Image Upload<input type="file" name="coverImage" accept="image/*" required /><span className="field-note">Required. TAMED keeps the original image quality. The manuscript and cover can total up to 20 MB.</span></label>
           </div>
         </fieldset>
 
-        <fieldset className="declaration-fieldset">
+        <fieldset className="declaration-fieldset" disabled={Boolean(progress)}>
           <legend>04 / Declaration</legend>
           <div className="declaration-list">
             <label className="declaration-check"><input type="checkbox" name="originalWork" required /> <span>This is my original work.</span></label>
@@ -135,10 +142,11 @@ export default function SubmitPage() {
         </fieldset>
 
         <div className="submit-actions">
-          <button className="button button-dark submit-button" type="submit" disabled={pending}>
-            {pending ? "Submitting…" : "Submit work"} <span aria-hidden="true">↗</span>
+          <button className="button button-dark submit-button" type="submit" disabled={Boolean(progress)}>
+            {progress ? "Submitting…" : "Submit work"} <span aria-hidden="true">↗</span>
           </button>
-          {(state.error || uploadError) && <p className="form-status form-error" role="alert">{state.error || uploadError}</p>}
+          <p className="form-status" role="status">{progress}</p>
+          {uploadError && <p className="form-status form-error" role="alert">{uploadError}</p>}
         </div>
       </form>
     </main>

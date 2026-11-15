@@ -2,41 +2,37 @@
 
 import { useEffect, useId, useState } from "react";
 import { CheckIcon, CrossIcon } from "@/components/Icons";
+import { EMAIL_PATTERN, writerMessages, type VerificationStatus } from "@/lib/submission-upload";
 
-type VerificationStatus = "idle" | "incomplete" | "checking" | "verified" | "not-found" | "unavailable";
+type DisplayStatus = "idle" | "checking" | VerificationStatus;
+const SETTLE_MS = 300;
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const SETTLE_MS = 600;
-
-function StatusMessage({ status }: { status: VerificationStatus }) {
-  if (status === "checking") return <span className="verify-text">Checking the register…</span>;
+function StatusMessage({ status }: { status: DisplayStatus }) {
+  if (status === "checking") return <span className="verify-text">Checking the BCWO register…</span>;
+  if (status === "incomplete") return <span className="verify-text">Enter your ID and a complete registration email to check eligibility.</span>;
   if (status === "verified") return (
     <>
       <CheckIcon className="verify-icon" />
-      <span className="verify-text">Verified — your BCWO registration was found.</span>
+      <span className="verify-text">BCWO registration verified.</span>
     </>
   );
-  if (status === "not-found") return (
+  if (status === "not-found" || status === "inactive" || status === "limit-reached") return (
     <>
       <CrossIcon className="verify-icon" />
-      <span className="verify-text">Not found. Check your BCWO Registration ID and the email you registered with.</span>
+      <span className="verify-text">{writerMessages[status]}</span>
     </>
   );
   if (status === "unavailable") return (
-    <span className="verify-text">The register could not be reached just now. Submit anyway — the editors confirm on receipt.</span>
+    <span className="verify-text">TAMED could not reach the BCWO register. Try checking again.</span>
   );
   return null;
 }
 
-/**
- * The two BCWO fields, checked against the register as the writer types. The
- * answer is only ever "found" or "not found"; the submission itself is
- * validated again on the server, so this is guidance, not a gate.
- */
 export default function WriterVerification() {
   const [bcwoId, setBcwoId] = useState("");
   const [verificationEmail, setVerificationEmail] = useState("");
-  const [status, setStatus] = useState<VerificationStatus>("idle");
+  const [status, setStatus] = useState<DisplayStatus>("idle");
+  const [retry, setRetry] = useState(0);
   const statusId = useId();
 
   function resetStatus(id: string, email: string) {
@@ -56,23 +52,29 @@ export default function WriterVerification() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ bcwoId: id, verificationEmail: email }),
-          signal: controller.signal,
+          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]),
         });
         if (!response.ok) throw new Error("Verification request failed");
         const result = await response.json() as { status?: string };
         if (controller.signal.aborted) return;
-        if (result.status === "verified") setStatus("verified");
-        else if (result.status === "unavailable") setStatus("unavailable");
-        else setStatus("not-found");
-      } catch (error) {
-        if (!controller.signal.aborted && !(error instanceof DOMException && error.name === "AbortError")) setStatus("unavailable");
+        switch (result.status) {
+          case "verified":
+          case "not-found":
+          case "inactive":
+          case "limit-reached":
+          case "incomplete":
+            setStatus(result.status);
+            break;
+          default:
+            setStatus("unavailable");
+        }
+      } catch {
+        if (!controller.signal.aborted) setStatus("unavailable");
       }
     }, SETTLE_MS);
 
     return () => { controller.abort(); window.clearTimeout(timer); };
-  }, [bcwoId, verificationEmail]);
-
-  const message = <StatusMessage status={status} />;
+  }, [bcwoId, verificationEmail, retry]);
 
   return (
     <>
@@ -81,6 +83,7 @@ export default function WriterVerification() {
         <input
           name="bcwoId"
           required
+          maxLength={120}
           autoComplete="off"
           value={bcwoId}
           onChange={(event) => {
@@ -88,7 +91,7 @@ export default function WriterVerification() {
             resetStatus(event.target.value, verificationEmail);
           }}
           placeholder="Enter your BCWO Registration ID or Team ID"
-          aria-describedby={message ? statusId : undefined}
+          aria-describedby={statusId}
         />
       </label>
       <label>
@@ -97,6 +100,7 @@ export default function WriterVerification() {
           type="email"
           name="verificationEmail"
           required
+          maxLength={254}
           autoComplete="email"
           value={verificationEmail}
           onChange={(event) => {
@@ -104,12 +108,19 @@ export default function WriterVerification() {
             resetStatus(bcwoId, event.target.value);
           }}
           placeholder="Email used for BCWO registration"
-          aria-describedby={message ? statusId : undefined}
+          aria-describedby={statusId}
         />
       </label>
       <p className={`verify-status full-field verify-status--${status}`} id={statusId} role="status" aria-live="polite">
-        {message}
+        <StatusMessage status={status} />
       </p>
+      {status === "unavailable" && (
+        <div className="full-field">
+          <button className="button" type="button" onClick={() => { setStatus("checking"); setRetry(retry + 1); }}>
+            Check registration again
+          </button>
+        </div>
+      )}
     </>
   );
 }

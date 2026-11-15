@@ -3,9 +3,6 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   experimental: {
     cpus: 1,
-    serverActions: {
-      bodySizeLimit: "20mb",
-    },
   },
   images: {
     remotePatterns: [
