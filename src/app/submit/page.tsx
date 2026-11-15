@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import CategorySelect from "@/components/CategorySelect";
 import WriterVerification from "@/components/WriterVerification";
 import { MAX_ATTACHMENT_BYTES, uploadSizeMessage, type SubmissionResponse } from "@/lib/submission-upload";
-import { attachmentMetadata, postUpload, uploadAttachment, validateCover, validateManuscript } from "./upload";
+import { attachmentMetadata, postUpload, uploadAttachment, validateCover, validateManuscript, WriterFacingError } from "./upload";
 
 const LANGUAGES = ["English", "Bengali"] as const;
 
@@ -62,13 +62,13 @@ export default function SubmitPage() {
         setState({ submissionId: receipt });
         return;
       }
-      setProgress("Saving your submission and requesting a receipt…");
+      setProgress("Saving your submission…");
       session.set("action", "finishUpload");
       setState(await postUpload(session));
     } catch (error) {
-      setUploadError(error instanceof Error && !(error instanceof TypeError) && !(error instanceof DOMException)
+      setUploadError(error instanceof WriterFacingError
         ? error.message
-        : "The connection was interrupted. Click Submit work again with the same details to resume or check for a receipt.");
+        : "TAMED couldn’t finish this attempt. Click Submit work again with the same details to continue or check whether it was saved.");
     } finally {
       setProgress("");
       inFlight.current = false;

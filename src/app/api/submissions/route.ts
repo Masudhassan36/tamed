@@ -5,7 +5,7 @@ import { EMAIL_PATTERN, isUploadId, manuscriptExtension, MAX_ATTACHMENT_BYTES, P
 export const maxDuration = 60;
 
 function fail(error: string, status = 400) {
-  return Response.json({ error }, { status });
+  return Response.json({ kind: "submission-error", error }, { status });
 }
 
 function readAttachment(entry: FormDataEntryValue | null): Attachment | undefined {
@@ -27,17 +27,17 @@ export async function POST(request: Request) {
     return fail("Open the TAMED submission page directly and try again.", 403);
   }
   if (Number(request.headers.get("content-length")) > 3_250_000) {
-    return fail("This upload request exceeds TAMED’s upload limit. Reload the submission page and try again.", 413);
+    return fail("TAMED couldn’t send your files. Reload the submission page and try again.", 413);
   }
   const form = await request.formData().catch(() => null);
-  if (!form) return fail("TAMED could not read this upload request. Try again from the submission form.");
+  if (!form) return fail("TAMED couldn’t read your submission. Open the submission page and try again.");
   const read = (key: string) => String(form.get(key) ?? "").trim();
   const action = read("action");
   const uploadId = read("uploadId");
   const bcwoId = read("bcwoId");
   const verificationEmail = read("verificationEmail");
   if (!isUploadId(uploadId) || !["beginUpload", "uploadPart", "finishUpload"].includes(action)) {
-    return fail("This upload session is invalid. Reload the page and start the submission again.");
+    return fail("TAMED couldn’t continue your submission. Reload the page and try again.");
   }
   if (!bcwoId || bcwoId.length > 120) return fail("Enter your BCWO Registration ID or Team ID.");
   if (!EMAIL_PATTERN.test(verificationEmail) || verificationEmail.length > 254) return fail("Enter the email address used for BCWO registration.");
@@ -62,7 +62,7 @@ export async function POST(request: Request) {
     if (publishPreference === "pen-name" && !penName) return fail("Enter your pen name or choose another publication preference.");
     if (publishPreference !== "pen-name" && !writerName) return fail("Enter your full name for editorial records.");
     if (writerName.length > 200 || penName.length > 200 || phone.length > 100 || deliveryAddress.length > 1500) {
-      return fail("Keep names under 201 characters, the phone number under 101, and the address under 1,501.");
+      return fail("Use up to 200 characters for each name, 100 for the phone number, and 1,500 for the address.");
     }
     if (["originalWork", "submissionPolicy", "contactConsent"].some((key) => form.get(key) !== "on")) {
       return fail("Accept all three declarations before submitting.");
@@ -80,38 +80,39 @@ export async function POST(request: Request) {
     const index = Number(read("index"));
     const part = form.get("part");
     if (!["manuscript", "coverImage"].includes(kind) || !/^\d+$/.test(read("index")) ||
-        !Number.isInteger(index) || index >= Math.ceil(MAX_ATTACHMENT_BYTES / PART_BYTES)) return fail("TAMED received an invalid file part. Try the upload again.");
+        !Number.isInteger(index) || index >= Math.ceil(MAX_ATTACHMENT_BYTES / PART_BYTES)) return fail("Your file didn’t finish uploading. Click Submit work again.");
     fileLabel = kind === "manuscript" ? "manuscript" : "cover image";
-    if (!(part instanceof File) || !part.size || part.size > PART_BYTES) return fail(`A part of the ${fileLabel} was empty or too large. Reattach it and try again.`);
+    if (!(part instanceof File) || !part.size || part.size > PART_BYTES) return fail(`Your ${fileLabel} didn’t finish uploading. Reattach the file and try again.`);
     payload = { ...payload, kind, index, data: Buffer.from(await part.arrayBuffer()).toString("base64") };
   }
 
   const endpoint = process.env.GOOGLE_SCRIPT_URL?.trim();
-  if (!endpoint) return fail("The TAMED submission service is offline. Contact the editors so they can restore it.", 503);
+  const unavailable = "TAMED can’t accept submissions right now. Try again later or contact the editors if the problem continues.";
+  if (!endpoint) return fail(unavailable, 503);
   try {
     const result = await callSubmissionScript(endpoint, payload, 45_000);
-    if (result.protocol !== 1) return fail("TAMED’s upload service needs an update. Contact the editors and keep your original files.", 503);
+    if (result.protocol !== 1) return fail(unavailable, 503);
     const rejection = writerRejection(result);
     if (rejection) return fail(writerMessages[rejection], 422);
     if (result.success && result.submissionId) return Response.json({ submissionId: result.submissionId });
     if (result.success && action !== "finishUpload") return Response.json({});
     switch (result.code) {
-      case "SESSION_EXPIRED": return fail("Your upload session expired. Reload the page and submit again.", 409);
+      case "SESSION_EXPIRED": return fail("Your upload timed out. Reload the page, then submit again.", 409);
       case "SESSION_CHANGED": return fail("The submission details changed during upload. Reload the page and start the submission again.", 409);
-      case "PART_INVALID": return fail(`A part of the ${fileLabel || "attachment"} could not be read. Reattach the original file and try again.`, 422);
+      case "PART_INVALID": return fail(`TAMED couldn’t finish uploading the ${fileLabel || "attached file"}. Reattach the original file and try again.`, 422);
       case "MANUSCRIPT_INCOMPLETE": return fail("The manuscript did not finish uploading. Click Submit work again to resume.", 409);
       case "COVER_INCOMPLETE": return fail("The cover image did not finish uploading. Click Submit work again to resume.", 409);
       case "BUSY": return fail("TAMED is finishing another upload. Wait a few seconds and click Submit work again.", 503);
-      case "REGISTER_ERROR": return fail("TAMED could not read the BCWO register. Try again shortly or contact the editors if it continues.", 503);
-      case "DRIVE_ERROR": return fail(`TAMED could not save the ${fileLabel || (result.stage === "saving manuscript" ? "manuscript" : result.stage === "saving cover" ? "cover image" : "files")} to Drive. Try again shortly or contact the editors if it continues.`, 503);
-      case "SHEET_ERROR": return fail("TAMED could not save the submission in Sheets. Wait a moment and click Submit work again.", 503);
+      case "REGISTER_ERROR": return fail("TAMED couldn’t check your BCWO registration. Try again shortly or contact the editors if it continues.", 503);
+      case "DRIVE_ERROR": return fail(`TAMED couldn’t save your ${fileLabel || (result.stage === "saving manuscript" ? "manuscript" : result.stage === "saving cover" ? "cover image" : "files")}. Wait a moment and click Submit work again.`, 503);
+      case "SHEET_ERROR": return fail("TAMED couldn’t save your submission. Wait a moment and click Submit work again.", 503);
       case "COMMIT_UNCERTAIN": return fail("TAMED could not confirm that the submission was saved. Click Submit work again with the same details to check. Contact the editors if this continues.", 503);
     }
   } catch {
-    if (action === "finishUpload") return fail("TAMED lost contact with Google before it received a receipt. Click Submit work again with the same details to check.", 504);
+    if (action === "finishUpload") return fail("TAMED couldn’t confirm that your submission was saved. Click Submit work again with the same details to check.", 504);
     return fail(fileLabel
-      ? `TAMED lost contact with Google while uploading the ${fileLabel}. Check your connection and click Submit work again.`
-      : "TAMED could not connect to the submission service. Wait a moment and try again.", 503);
+      ? `The ${fileLabel} didn’t finish uploading. Wait a moment and click Submit work again.`
+      : unavailable, 503);
   }
   return fail("TAMED could not confirm this upload. Try again with the same details, or contact the editors if it continues.", 502);
 }

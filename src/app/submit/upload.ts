@@ -1,11 +1,17 @@
 import { manuscriptExtension, PART_BYTES, type Attachment, type AttachmentKind, type SubmissionResponse } from "@/lib/submission-upload";
 
+export class WriterFacingError extends Error {}
+
 export async function postUpload(data: FormData): Promise<SubmissionResponse> {
   const response = await fetch("/api/submissions", { method: "POST", body: data, signal: AbortSignal.timeout(65_000) });
-  const result = await response.json().catch(() => null) as SubmissionResponse | null;
-  if (typeof result?.error === "string") throw new Error(result.error);
-  if (response.status === 413) throw new Error("TAMED rejected one upload request because of its size. Reload the form and try again.");
-  if (!response.ok || !result) throw new Error("TAMED did not return an upload response. Click Submit work again with the same details.");
+  const result = await response.json().catch(() => null) as (SubmissionResponse & { kind?: string }) | null;
+  if (!response.ok && result?.kind === "submission-error" && typeof result.error === "string") {
+    throw new WriterFacingError(result.error);
+  }
+  if (response.status === 413) throw new WriterFacingError("TAMED couldn’t send your files. Reload the submission page and try again.");
+  if (!response.ok || !result || (data.get("action") === "finishUpload" && !result.submissionId)) {
+    throw new WriterFacingError("TAMED couldn’t confirm your submission. Click Submit work again with the same details to check.");
+  }
   return result;
 }
 
@@ -17,7 +23,7 @@ export async function uploadAttachment(
 ) {
   const count = Math.ceil(file.size / PART_BYTES);
   for (let index = 0; index < count; index++) {
-    progress(`Uploading ${kind === "manuscript" ? "manuscript" : "cover image"} (${index + 1} of ${count})…`);
+    progress(`Uploading ${kind === "manuscript" ? "manuscript" : "cover image"}…`);
     const data = new FormData();
     for (const [key, value] of session) data.set(key, value);
     data.set("action", "uploadPart");
@@ -44,10 +50,10 @@ export function attachmentMetadata(file: File): Attachment {
 
 export async function validateManuscript(file: File) {
   const extension = manuscriptExtension(file.name);
-  if (!extension) throw new Error("Attach a DOC, DOCX, PDF, or TXT manuscript.");
+  if (!extension) throw new WriterFacingError("Attach a DOC, DOCX, PDF, or TXT manuscript.");
   const header = new Uint8Array(await file.slice(0, 1024).arrayBuffer());
   if (extension === ".pdf" && !new TextDecoder().decode(header).includes("%PDF-")) {
-    throw new Error("The manuscript does not contain a PDF header. Open it in its original app and export a new PDF.");
+    throw new WriterFacingError("TAMED couldn’t open your PDF. Open the original document and save a new copy as a PDF.");
   }
   if (extension !== ".docx") return;
   const tail = new DataView(await file.slice(Math.max(0, file.size - 65_557)).arrayBuffer());
@@ -60,11 +66,11 @@ export async function validateManuscript(file: File) {
     if (directory.includes("[Content_Types].xml") && directory.includes("word/document.xml")) return;
     break;
   }
-  throw new Error("TAMED could not read the DOCX package. Open it in Word or Google Docs and save a new DOCX or PDF. If it is password protected, export an unlocked copy.");
+  throw new WriterFacingError("TAMED couldn’t open your Word document. Open it in your writing app and save a new DOCX or PDF without a password.");
 }
 
 export async function validateCover(file: File, type: string) {
-  if (!type.startsWith("image/")) throw new Error("Choose an image for the cover, such as a PNG, JPEG, or WebP.");
+  if (!type.startsWith("image/")) throw new WriterFacingError("Choose an image for the cover, such as a PNG, JPEG, or WebP.");
   if (!["image/png", "image/jpeg", "image/webp", "image/gif"].includes(type)) return;
   const url = URL.createObjectURL(file);
   try {
@@ -72,7 +78,7 @@ export async function validateCover(file: File, type: string) {
     image.src = url;
     await image.decode();
   } catch {
-    throw new Error("The cover image could not be opened. Re-export it as a PNG, JPEG, or WebP and reattach it.");
+    throw new WriterFacingError("TAMED couldn’t open your cover image. Save a new copy as a PNG, JPEG, or WebP and attach it again.");
   } finally {
     URL.revokeObjectURL(url);
   }
