@@ -65,8 +65,8 @@ button, input, select { font: inherit; }
 .button-dark:hover { background: transparent; color: var(--ink); }
 .button-light:hover { background: var(--ink); color: var(--paper); }
 
-.editorial-section { padding-block: 100px 104px; }
-.section-title { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 12px 32px; padding-bottom: 24px; border-bottom: 1px solid var(--ink); }
+.editorial-section { padding-block: clamp(48px, 6vw, 80px); }
+.section-title { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 12px 32px; padding-bottom: 18px; border-bottom: 1px solid var(--ink); }
 .section-title h2 { margin: 9px 0 0; font-family: var(--serif); font-size: 42px; font-weight: 400; line-height: 1.12; }
 .section-number { align-self: start; color: var(--muted); font-size: 10px; letter-spacing: .1em; }
 .section-description { grid-column: 1 / -1; max-width: 460px; margin: 1px 0 0; color: var(--muted); font-size: 12px; }
@@ -86,7 +86,7 @@ button, input, select { font: inherit; }
 .rating-value { display: inline-flex; min-width: 25px; min-height: 24px; align-items: center; justify-content: center; border: 1px solid var(--ink); font-family: var(--serif); font-size: 14px; }
 .text-link { display: inline-flex; align-items: center; gap: 10px; margin-top: 26px; padding-bottom: 4px; border-bottom: 1px solid var(--ink); font-size: 10px; letter-spacing: .09em; text-transform: uppercase; }
 
-.article-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; padding-top: 30px; }
+.article-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(34px, 4vw, 52px) 28px; padding-top: 30px; }
 .article-card { min-width: 0; }
 .article-image { width: 100%; aspect-ratio: 1.38; margin-bottom: 17px; cursor: pointer; }
 .article-image img { pointer-events: none; }
@@ -97,7 +97,20 @@ button, input, select { font: inherit; }
 .article-date { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
 .article-issue { margin: 5px 0 0; color: var(--muted); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
 .article-excerpt { min-height: 50px; margin: 12px 0 14px; color: #605e59; font-family: var(--serif); font-size: 15px; line-height: 1.45; }
-.article-card .rating-badge { padding-top: 10px; border-top: 1px solid var(--rule); }
+.article-card-copy { min-width: 0; }
+.article-card h3 { text-wrap: pretty; overflow-wrap: anywhere; }
+.article-card-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 12px; margin-block: 9px 10px; }
+.article-card-meta > * { margin: 0; }
+.article-card-meta .article-issue { letter-spacing: .07em; }
+.section-title h2, .article-header h1, .institution-header h1 { text-wrap: balance; }
+.article-header .article-meta { flex-wrap: wrap; }
+.article-header { padding-bottom: 18px; border-bottom: 1px solid var(--rule); }
+.journal-home .top-rated-section { padding-block: 0 clamp(38px, 5vw, 66px); }
+.top-rated-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: clamp(24px, 5vw, 68px); row-gap: 0; padding-top: 0; }
+.article-card--compact { display: grid; grid-template-columns: clamp(76px, 10vw, 128px) minmax(0, 1fr); gap: clamp(13px, 2vw, 24px); padding-block: 20px; border-bottom: 1px solid var(--rule); }
+.article-card--compact .article-image { aspect-ratio: 1.18; margin: 0; }
+.article-card--compact h3 { font-size: clamp(19px, 2.1vw, 26px); }
+.article-card--compact .rating-value { min-height: 20px; min-width: 22px; }
 
 .ten-section { padding-block: 89px 100px; border-block: 1px solid var(--ink); background: #f2f0eb; }
 .ten-list { display: grid; grid-template-columns: 1fr 1fr; column-gap: 54px; margin-top: 22px; }
@@ -307,6 +320,7 @@ button, input, select { font: inherit; }
   .feature-excerpt { margin-top: 13px; font-size: 16px; }
   .feature-meta { margin-top: 20px; }
   .article-grid { grid-template-columns: 1fr; gap: 36px; padding-top: 23px; }
+  .top-rated-grid { gap: 0; padding-top: 0; }
   .article-image { aspect-ratio: 1.5; }
   .article-crux { font-size: 12px; }
   .ten-section { padding-block: 67px 72px; }

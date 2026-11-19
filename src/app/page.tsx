@@ -11,16 +11,21 @@ import { theTen } from "@/lib/content";
 
 export const dynamic = "force-dynamic";
 
+function newestFirst(a: { publishedAt: string | null; id: string }, b: typeof a) {
+  return (b.publishedAt ?? "").localeCompare(a.publishedAt ?? "") || b.id.localeCompare(a.id);
+}
+
 export default function Home() {
   const publishedArticles = getPublishedArticles();
   const latestIssue = getLatestIssue();
-  const latestArticles = publishedArticles.filter((article) => article.issue === latestIssue);
+  const latestArticles = publishedArticles.filter((article) => article.issue === latestIssue).sort(newestFirst);
+  const topRated = publishedArticles.filter((article) => article.editorialRating === "5").sort(newestFirst);
   const honors = publishedArticles.filter((article) => article.editorialRating === "5+" && article.issue === latestIssue);
   const featuredArticles = getFeaturedArticles();
   const alwaysRecommended = getAlwaysRecommendedArticles();
 
   return (
-    <main>
+    <main className="journal-home">
       <section className="hero page-width" aria-labelledby="hero-title">
         <div className="hero-topline"><span>Independent literary journal</span><span><LiveDate /> · <em className="hero-issue">Issue {latestIssue}</em></span></div>
         <div className="hero-center">
@@ -48,6 +53,15 @@ export default function Home() {
         </div>
       </section>
 
+      {topRated.length > 0 && (
+        <section className="editorial-section page-width top-rated-section" aria-label="Top Rated">
+          <SectionTitle title="Top Rated" />
+          <div className="article-grid top-rated-grid">
+            {topRated.map((article) => <ArticleCard key={article.slug} article={toArticleCardData(article)} compact />)}
+          </div>
+        </section>
+      )}
+
       {alwaysRecommended.length > 0 && (
         <section className="editorial-section page-width always-read-section" aria-labelledby="always-read-heading">
           <SectionTitle eyebrow="A standing recommendation" title="Always Read" />
@@ -58,7 +72,7 @@ export default function Home() {
       )}
 
       <section className="editorial-section page-width" id="latest">
-        <SectionTitle eyebrow="02 / From the archive" title={`Issue ${latestIssue}`} description="The current issue, with every published piece arranged newest first." number="02" />
+        <SectionTitle eyebrow="02 / Latest issue" title={`Issue ${latestIssue}`} number="02" />
         <div className="article-grid">
           {latestArticles.map((article) => <ArticleCard key={article.slug} article={toArticleCardData(article)} />)}
         </div>

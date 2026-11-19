@@ -5,6 +5,7 @@ import richContentRecords from "./rich-content.json";
 import issueThreeRecords from "./issue3-articles.json";
 import issueFourRecords from "./issue4-articles.json";
 import issueFiveRecords from "./issue5-articles.json";
+import issueSixRecords from "./issue6-articles.json";
 import manuscriptFormatRecords from "./manuscript-formats.json";
 import { findCategory } from "./content";
 import type { CategorySlug } from "./content";
@@ -225,6 +226,7 @@ const publishedFeed = [
   ...(issueThreeRecords as unknown as Article[]),
   ...(issueFourRecords as Article[]),
   ...(issueFiveRecords as unknown as Article[]),
+  ...(issueSixRecords as unknown as Article[]),
 ].map((article) => {
   const paragraphs = (manuscriptFormatRecords as unknown as Record<string, ManuscriptParagraph[]>)[article.id];
   return paragraphs ? { ...article, manuscriptParagraphs: paragraphs } : article;
