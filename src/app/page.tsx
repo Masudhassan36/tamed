@@ -29,11 +29,10 @@ export default function Home() {
       <section className="hero page-width" aria-labelledby="hero-title">
         <div className="hero-topline"><span>Independent literary journal</span><span><LiveDate /> · <em className="hero-issue">Issue {latestIssue}</em></span></div>
         <div className="hero-center">
-          <p className="hero-kicker">Writing that refuses to remain silent</p>
+          <div className="hero-seal" aria-hidden="true"><Image src="/images/tamed-logo.svg" alt="" width={60} height={54} /></div>
           <h1 id="hero-title" className="hero-wordmark">
-            <Image src="/images/tamed-wordmark.svg" alt="TAMED™" width={1200} height={280} priority />
           </h1>
-          <p className="hero-subtitle">A literary journal for voices, ideas, and stories that refuse to remain silent.</p>
+          <p className="hero-subtitle">For voices, ideas, and stories that refuse to remain silent.</p>
           <div className="hero-actions">
             <Link className="button button-dark" href="#latest">Read</Link>
             <Link className="button button-light" href="/submit">Submit Your Work <span aria-hidden="true">↗</span></Link>

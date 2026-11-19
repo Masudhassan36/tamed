@@ -8,13 +8,18 @@ type LogoProps = {
   imageHeight?: number;
 };
 
-export default function Logo({ className = "", imageSrc, imageWidth = 240, imageHeight = 56 }: LogoProps) {
+export default function Logo({
+  className = "",
+  imageSrc,
+  imageWidth = 240,
+  imageHeight = 56,
+}: LogoProps) {
   return (
-    <Link href="/" className={`wordmark ${className}`} aria-label="TAMED home">
+    <Link href="/" className={`wordmark ${className}`} aria-label="Tamed home">
       {imageSrc ? (
-        <Image className="wordmark-image" src={imageSrc} alt="TAMED™" width={imageWidth} height={imageHeight} />
+        <Image className="wordmark-image" src={imageSrc} alt="TAMED" width={imageWidth} height={imageHeight} />
       ) : (
-        <span className="wordmark-fallback">TAMED<span className="trademark">™</span></span>
+        <Image className="wordmark-image" src="/images/tamed-masthead.svg" alt="" width={558} height={142} />
       )}
     </Link>
   );

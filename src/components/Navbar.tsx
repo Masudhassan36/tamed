@@ -18,7 +18,7 @@ export default function Navbar() {
   return (
     <header className="site-header">
       <div className="header-inner">
-        <Logo imageSrc="/images/tamed-wordmark.svg" imageWidth={1200} imageHeight={280} />
+        <Logo />
         <nav className="primary-nav" aria-label="Main navigation">
           {links.map((link) => (
             <Link key={link.label} href={link.href}>
