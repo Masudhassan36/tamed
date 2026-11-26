@@ -11,6 +11,12 @@ export default function ArticleComments({ slug }: { slug: string }) {
   const [status, setStatus] = useState("");
 
   useEffect(() => {
+    const remember = () => setRemembered(true);
+    window.addEventListener("tamed-reader-verified", remember);
+    return () => window.removeEventListener("tamed-reader-verified", remember);
+  }, []);
+
+  useEffect(() => {
     const controller = new AbortController();
     fetch(`/api/comments?article=${encodeURIComponent(slug)}`, { signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
