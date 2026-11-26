@@ -33,6 +33,7 @@ function doPost(e) {
   if (!data || typeof data !== "object") return json({success:false, code:"INVALID_REQUEST"});
   if (data.action === "verify") return verifyResponse(data);
   if (data.action === "listComments" || data.action === "addComment") return commentResponse(data);
+  if (data.action === "getLikes" || data.action === "setLike") return likeResponse(data);
   if (data.action && !["beginUpload", "uploadPart", "finishUpload"].includes(data.action)) {
     return json({success:false, code:"INVALID_REQUEST"});
   }
@@ -148,6 +149,52 @@ function digest(text) {
 }
 
 const COMMENT_SESSION_SECONDS = 90 * 24 * 60 * 60;
+
+function likeResponse(data) {
+  const articleId = String(data.articleId || "");
+  const visitor = String(data.visitor || "");
+  const writing = data.action === "setLike";
+  if (!/^[a-z0-9_-]{1,150}$/i.test(articleId) || !/^[0-9a-f-]{36}$/i.test(visitor)
+    || (writing && typeof data.liked !== "boolean")) return json({success:false, code:"INVALID_REQUEST"});
+
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return json({success:false, code:"BUSY"});
+  try {
+    const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+    let sheet = spreadsheet.getSheetByName("Likes");
+    const key = digest(visitor);
+    const rowCount = sheet ? sheet.getLastRow() - 1 : 0;
+    const rows = rowCount > 0 ? sheet.getRange(2, 1, rowCount, 2).getDisplayValues() : [];
+    let likes = 0;
+    let voteRow = 0;
+    rows.forEach((row, index) => {
+      if (row[0] !== articleId) return;
+      likes++;
+      if (row[1] === key) voteRow = index + 2;
+    });
+    if (writing && data.liked !== Boolean(voteRow)) {
+      if (data.liked) {
+        if (!sheet) {
+          sheet = spreadsheet.insertSheet("Likes");
+          sheet.appendRow(["Article TMD ID", "Browser Key"]);
+          sheet.setFrozenRows(1);
+        }
+        sheet.appendRow([articleId, key]);
+        likes++;
+      } else {
+        sheet.deleteRow(voteRow);
+        likes--;
+      }
+      SpreadsheetApp.flush();
+    }
+    return json({success:true, likes, liked:writing ? data.liked : Boolean(voteRow)});
+  } catch (error) {
+    console.error("TAMED likes failed", error && error.name);
+    return json({success:false, code:"LIKES_UNAVAILABLE"});
+  } finally {
+    lock.releaseLock();
+  }
+}
 
 function commentSignature(payload, secret) {
   return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(payload, secret));
