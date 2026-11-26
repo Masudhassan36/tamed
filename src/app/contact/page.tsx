@@ -21,7 +21,7 @@ export default function ContactPage() {
         </div>
         <div className="contact-row">
           <span className="eyebrow">Instagram</span>
-          <span>Coming soon</span>
+          <a href="https://www.instagram.com/tamed.81/">@tamed.81</a>
         </div>
         <div className="contact-row">
           <span className="eyebrow">Facebook</span>

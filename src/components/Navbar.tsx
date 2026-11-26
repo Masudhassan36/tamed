@@ -27,7 +27,7 @@ export default function Navbar() {
           ))}
         </nav>
         <div className="social-placeholders" aria-label="Social media">
-          <span aria-label="Instagram" title="Instagram"><InstagramIcon /></span>
+          <a href="https://www.instagram.com/tamed.81/" aria-label="TAMED on Instagram (@tamed.81)" title="@tamed.81"><InstagramIcon /></a>
           <span aria-label="Facebook" title="Facebook"><FacebookIcon /></span>
         </div>
       </div>
