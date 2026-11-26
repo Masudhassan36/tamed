@@ -231,7 +231,8 @@ const publishedFeed = [
   ...(issueSevenRecords as unknown as Article[]),
 ].map((article) => {
   const paragraphs = (manuscriptFormatRecords as unknown as Record<string, ManuscriptParagraph[]>)[article.id];
-  return paragraphs ? { ...article, manuscriptParagraphs: paragraphs } : article;
+  const author = article.author?.toLowerCase() === "nafiz-bin-hafiz" ? "Nafiz-Bin-Hafiz" : article.author;
+  return { ...article, author, manuscriptParagraphs: paragraphs ?? article.manuscriptParagraphs };
 });
 const ratingWeight = (rating: EditorialRating | null) => rating ? ({ "5+": 7, "5": 6, "4+": 5, "4": 4, "3+": 3, "3": 2, "2+": 1, "2": 0.5 }[rating]) : 0;
 const dateWeight = (value: string | null) => value ? Date.parse(value.length === 7 ? `${value}-01` : value) || 0 : 0;
