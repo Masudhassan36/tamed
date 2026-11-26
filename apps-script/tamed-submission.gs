@@ -152,17 +152,20 @@ const COMMENT_SESSION_SECONDS = 90 * 24 * 60 * 60;
 
 function likeResponse(data) {
   const articleId = String(data.articleId || "");
-  const visitor = String(data.visitor || "");
   const writing = data.action === "setLike";
-  if (!/^[a-z0-9_-]{1,150}$/i.test(articleId) || !/^[0-9a-f-]{36}$/i.test(visitor)
+  if (!/^[a-z0-9_-]{1,150}$/i.test(articleId)
     || (writing && typeof data.liked !== "boolean")) return json({success:false, code:"INVALID_REQUEST"});
 
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(5000)) return json({success:false, code:"BUSY"});
   try {
     const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-    let sheet = spreadsheet.getSheetByName("Likes");
-    const key = digest(visitor);
+    const identity = writing ? getCommentIdentity(data) : {
+      session: readCommentSession(data.commentSession, PropertiesService.getScriptProperties().getProperty("TAMED_COMMENT_SESSION_SECRET")),
+    };
+    if (writing && !identity.session) return json({success:false, code:identity.code});
+    let sheet = spreadsheet.getSheetByName("Verified Likes");
+    const key = identity.session?.key;
     const rowCount = sheet ? sheet.getLastRow() - 1 : 0;
     const rows = rowCount > 0 ? sheet.getRange(2, 1, rowCount, 2).getDisplayValues() : [];
     let likes = 0;
@@ -175,8 +178,8 @@ function likeResponse(data) {
     if (writing && data.liked !== Boolean(voteRow)) {
       if (data.liked) {
         if (!sheet) {
-          sheet = spreadsheet.insertSheet("Likes");
-          sheet.appendRow(["Article TMD ID", "Browser Key"]);
+          sheet = spreadsheet.insertSheet("Verified Likes");
+          sheet.appendRow(["Article TMD ID", "Verified Registration Key"]);
           sheet.setFrozenRows(1);
         }
         sheet.appendRow([articleId, key]);
@@ -187,7 +190,8 @@ function likeResponse(data) {
       }
       SpreadsheetApp.flush();
     }
-    return json({success:true, likes, liked:writing ? data.liked : Boolean(voteRow)});
+    return json({success:true, likes, liked:writing ? data.liked : Boolean(voteRow),
+      commentSession:writing ? renewCommentSession(identity.session, identity.secret) : undefined});
   } catch (error) {
     console.error("TAMED likes failed", error && error.name);
     return json({success:false, code:"LIKES_UNAVAILABLE"});
@@ -207,6 +211,32 @@ function readCommentSession(token, secret) {
   return session.expires > Date.now() ? session : null;
 }
 
+function getCommentIdentity(data) {
+  const properties = PropertiesService.getScriptProperties();
+  let secret = properties.getProperty("TAMED_COMMENT_SESSION_SECRET");
+  const session = readCommentSession(data.commentSession, secret);
+  if (session) return {session, secret};
+  if (typeof data.bcwoId !== "string" || !data.bcwoId.trim() || data.bcwoId.length > 120
+    || typeof data.verificationEmail !== "string" || !data.verificationEmail.trim() || data.verificationEmail.length > 254) {
+    return {code:"COMMENT_VERIFICATION_REQUIRED"};
+  }
+  const writer = checkWriter(data.bcwoId, data.verificationEmail);
+  if (!writer.valid) return {code:writer.code};
+  if (!secret) {
+    secret = Utilities.getUuid() + Utilities.getUuid();
+    properties.setProperty("TAMED_COMMENT_SESSION_SECRET", secret);
+  }
+  const firstName = String(writer.name || "").trim().split(/\s+/u)[0] || "Writer";
+  return {session:{firstName, key:digest(secret + normalize(data.bcwoId))}, secret};
+}
+
+function renewCommentSession(session, secret) {
+  const payload = Utilities.base64EncodeWebSafe(JSON.stringify({
+    ...session, expires:Date.now() + COMMENT_SESSION_SECONDS * 1000,
+  }), Utilities.Charset.UTF_8);
+  return payload + "." + commentSignature(payload, secret);
+}
+
 function commentResponse(data) {
   const articleId = String(data.articleId || "");
   if (!/^[a-z0-9_-]{1,150}$/i.test(articleId)) return json({success:false, code:"INVALID_ARTICLE"});
@@ -224,20 +254,8 @@ function commentResponse(data) {
     const lock = LockService.getScriptLock();
     if (!lock.tryLock(5000)) return json({success:false, code:"BUSY"});
     try {
-      const properties = PropertiesService.getScriptProperties();
-      let secret = properties.getProperty("TAMED_COMMENT_SESSION_SECRET");
-      let session = readCommentSession(data.commentSession, secret);
-      if (!session) {
-        if (!data.bcwoId || !data.verificationEmail) return json({success:false, code:"COMMENT_VERIFICATION_REQUIRED"});
-        const writer = checkWriter(data.bcwoId, data.verificationEmail);
-        if (!writer.valid) return json({success:false, code:writer.code});
-        if (!secret) {
-          secret = Utilities.getUuid() + Utilities.getUuid();
-          properties.setProperty("TAMED_COMMENT_SESSION_SECRET", secret);
-        }
-        const firstName = String(writer.name || "").trim().split(/\s+/u)[0] || "Writer";
-        session = {firstName, key:digest(secret + normalize(data.bcwoId)), expires:Date.now() + COMMENT_SESSION_SECONDS * 1000};
-      }
+      const {session, secret, code} = getCommentIdentity(data);
+      if (!session) return json({success:false, code});
       const cache = CacheService.getScriptCache();
       if (cache.get("comment:" + session.key)) return json({success:false, code:"COMMENT_RATE_LIMIT"});
       let sheet = spreadsheet.getSheetByName("Comments");
@@ -251,9 +269,7 @@ function commentResponse(data) {
       sheet.appendRow([comment.id, articleId, "'" + comment.firstName, "'" + text, "'" + comment.createdAt]);
       SpreadsheetApp.flush();
       cache.put("comment:" + session.key, "1", 15);
-      session.expires = Date.now() + COMMENT_SESSION_SECONDS * 1000;
-      const payload = Utilities.base64EncodeWebSafe(JSON.stringify(session), Utilities.Charset.UTF_8);
-      return json({success:true, comment, commentSession:payload + "." + commentSignature(payload, secret)});
+      return json({success:true, comment, commentSession:renewCommentSession(session, secret)});
     } finally {
       lock.releaseLock();
     }
