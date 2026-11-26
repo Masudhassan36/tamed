@@ -13,7 +13,8 @@ export default function AuthorsPage() {
       <header className="institution-header">
         <p className="eyebrow">The journal / Contributors</p>
         <h1>Authors</h1>
-        <p>Writers rank by their average across rated published pieces. A plus adds half a point (3+ = 3.5, 4+ = 4.5, 5+ = 5.5). Ties go to the writer with more 5 ratings, then more 4+ ratings, then alphabetical order. Writers without ratings appear last.</p>
+        <p>Writers rank by total points across rated published pieces. Each piece earns its numerical rating minus 2.5 points. A plus adds half a point, so 4+ is a rating of 4.5 and earns 2 points.</p>
+        <p>Ties go to the higher average rating, then more 5 ratings, then more 4+ ratings, then alphabetical order. Writers without rated pieces appear last.</p>
       </header>
       <AuthorDirectory articles={getPublishedArticles()} />
     </main>
