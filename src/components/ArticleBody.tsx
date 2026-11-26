@@ -112,13 +112,48 @@ function withoutRepeatedTitle(article: Article, blocks: DisplayBlock[]): Display
   return normalise(firstText) === normalise(article.title) ? blocks.slice(firstContent + 1) : blocks;
 }
 
+function reflowPdfProse(blocks: ManuscriptParagraph[]): ManuscriptParagraph[] {
+  const gaps = blocks
+    .filter((block, index) => block.sourceLine && !block.pageBreakBefore && blocks[index - 1]?.sourceLine)
+    .map((block) => block.spaceBefore ?? 0)
+    .sort((a, b) => a - b);
+  const lineGap = gaps[Math.floor(gaps.length / 4)] ?? 0;
+  const paragraphGap = lineGap + Math.max(4, lineGap * 0.25);
+  const paragraphs: ManuscriptParagraph[] = [];
+  let active: ManuscriptParagraph | undefined;
+  let previous: ManuscriptParagraph | undefined;
+  for (const block of blocks) {
+    if (!block.sourceLine || block.table || block.separator || !block.runs.some((run) => run.text.trim())) {
+      paragraphs.push(block);
+      active = previous = undefined;
+      continue;
+    }
+    const priorText = previous?.runs.map((run) => run.text).join("") ?? "";
+    const sentenceEnds = /[.!?।…][”"'’»)]*$/u.test(priorText.trimEnd());
+    const indented = (block.indentLeft ?? 0) - (previous?.indentLeft ?? 0) >= 8;
+    if (!active || indented || (block.spaceBefore ?? 0) > paragraphGap
+      || (block.pageBreakBefore && sentenceEnds)) {
+      active = { runs: [...block.runs], alignment: block.alignment };
+      paragraphs.push(active);
+    } else {
+      if (!/\s$/u.test(priorText) && !/^\s/u.test(block.runs[0]?.text ?? "")) {
+        active.runs.push({ text: " " });
+      }
+      active.runs.push(...block.runs);
+    }
+    previous = block;
+  }
+  return paragraphs;
+}
+
 export default function ArticleBody({ article }: ArticleBodyProps) {
   const language = /^(bangla|bengali|bn)$/i.test(article.language ?? "") ? "bn" : undefined;
   const isVerse = isVerseArticle(article);
   if (article.manuscriptParagraphs?.length) {
+    const paragraphs = isVerse ? article.manuscriptParagraphs : reflowPdfProse(article.manuscriptParagraphs);
     return (
       <div className={`article-body article-body--original ${isVerse ? "article-body--verse" : "article-body--prose"}`} aria-label="Published manuscript" lang={language}>
-        {article.manuscriptParagraphs.map((paragraph, index) => renderManuscriptParagraph(paragraph, `original-${index}`))}
+        {paragraphs.map((paragraph, index) => renderManuscriptParagraph(paragraph, `original-${index}`))}
       </div>
     );
   }
