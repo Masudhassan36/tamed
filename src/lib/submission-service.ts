@@ -9,7 +9,12 @@ type ScriptResult = {
   code?: string;
   stage?: string;
   error?: string;
+  comments?: PublishedComment[];
+  comment?: PublishedComment;
+  commentSession?: string;
 };
+
+export type PublishedComment = { id: string; firstName: string; text: string; createdAt: string };
 
 export function writerRejection(result: ScriptResult) {
   switch (result.code) {

@@ -32,6 +32,7 @@ function doPost(e) {
   }
   if (!data || typeof data !== "object") return json({success:false, code:"INVALID_REQUEST"});
   if (data.action === "verify") return verifyResponse(data);
+  if (data.action === "listComments" || data.action === "addComment") return commentResponse(data);
   if (data.action && !["beginUpload", "uploadPart", "finishUpload"].includes(data.action)) {
     return json({success:false, code:"INVALID_REQUEST"});
   }
@@ -137,13 +138,82 @@ function checkWriter(id, email) {
     }
     const countRange = sheet.getRange(i + 2, 7, 1, 2);
     const counts = sheet.getRange(i + 2, 7, 1, 3).getValues()[0];
-    return {valid:true, spreadsheet:spreadsheet, countRange:countRange, count:toNumber(counts[0]), counts:counts, maximum:toNumber(counts[2])};
+    return {valid:true, name:row[3], spreadsheet:spreadsheet, countRange:countRange, count:toNumber(counts[0]), counts:counts, maximum:toNumber(counts[2])};
   }
   return inactive ? {valid:false, code:"WRITER_INACTIVE", error:"This BCWO registration is inactive."} : notFound;
 }
 
 function digest(text) {
   return Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, text)).replace(/=+$/, "");
+}
+
+const COMMENT_SESSION_SECONDS = 90 * 24 * 60 * 60;
+
+function commentSignature(payload, secret) {
+  return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(payload, secret));
+}
+
+function readCommentSession(token, secret) {
+  const parts = String(token || "").split(".");
+  if (!secret || parts.length !== 2 || parts[1] !== commentSignature(parts[0], secret)) return null;
+  const session = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[0])).getDataAsString());
+  return session.expires > Date.now() ? session : null;
+}
+
+function commentResponse(data) {
+  const articleId = String(data.articleId || "");
+  if (!/^[a-z0-9_-]{1,150}$/i.test(articleId)) return json({success:false, code:"INVALID_ARTICLE"});
+  try {
+    const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+    if (data.action === "listComments") {
+      const sheet = spreadsheet.getSheetByName("Comments");
+      const count = sheet ? sheet.getLastRow() - 1 : 0;
+      const rows = count > 0 ? sheet.getRange(2, 1, count, 5).getDisplayValues() : [];
+      return json({success:true, comments:rows.filter(row => row[0] && row[1] === articleId)
+        .map(row => ({id:row[0], firstName:row[2], text:row[3], createdAt:row[4]}))});
+    }
+    const text = typeof data.text === "string" ? data.text.trim() : "";
+    if (!text || text.length > 2000) return json({success:false, code:"INVALID_COMMENT"});
+    const lock = LockService.getScriptLock();
+    if (!lock.tryLock(5000)) return json({success:false, code:"BUSY"});
+    try {
+      const properties = PropertiesService.getScriptProperties();
+      let secret = properties.getProperty("TAMED_COMMENT_SESSION_SECRET");
+      let session = readCommentSession(data.commentSession, secret);
+      if (!session) {
+        if (!data.bcwoId || !data.verificationEmail) return json({success:false, code:"COMMENT_VERIFICATION_REQUIRED"});
+        const writer = checkWriter(data.bcwoId, data.verificationEmail);
+        if (!writer.valid) return json({success:false, code:writer.code});
+        if (!secret) {
+          secret = Utilities.getUuid() + Utilities.getUuid();
+          properties.setProperty("TAMED_COMMENT_SESSION_SECRET", secret);
+        }
+        const firstName = String(writer.name || "").trim().split(/\s+/u)[0] || "Writer";
+        session = {firstName, key:digest(secret + normalize(data.bcwoId)), expires:Date.now() + COMMENT_SESSION_SECONDS * 1000};
+      }
+      const cache = CacheService.getScriptCache();
+      if (cache.get("comment:" + session.key)) return json({success:false, code:"COMMENT_RATE_LIMIT"});
+      let sheet = spreadsheet.getSheetByName("Comments");
+      if (!sheet) {
+        sheet = spreadsheet.insertSheet("Comments");
+        sheet.appendRow(["Comment ID", "Article TMD ID", "First Name", "Comment", "Published At (UTC)"]);
+        sheet.setFrozenRows(1);
+      }
+      const comment = {id:Utilities.getUuid(), firstName:session.firstName, text, createdAt:new Date().toISOString()};
+      // A leading apostrophe makes user text literal in Sheets.
+      sheet.appendRow([comment.id, articleId, "'" + comment.firstName, "'" + text, "'" + comment.createdAt]);
+      SpreadsheetApp.flush();
+      cache.put("comment:" + session.key, "1", 15);
+      session.expires = Date.now() + COMMENT_SESSION_SECONDS * 1000;
+      const payload = Utilities.base64EncodeWebSafe(JSON.stringify(session), Utilities.Charset.UTF_8);
+      return json({success:true, comment, commentSession:payload + "." + commentSignature(payload, secret)});
+    } finally {
+      lock.releaseLock();
+    }
+  } catch (error) {
+    console.error("TAMED comments failed", error && error.name);
+    return json({success:false, code:"COMMENTS_UNAVAILABLE"});
+  }
 }
 
 function uploadKey(data) {
