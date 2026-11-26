@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import ArticleBody from "@/components/ArticleBody";
 import ArticleCard from "@/components/ArticleCard";
 import ArticleComments from "@/components/ArticleComments";
+import ArticleLike from "@/components/ArticleLike";
 import RatingBadge from "@/components/RatingBadge";
 import SectionTitle from "@/components/SectionTitle";
 import { formatPublicationDate, getArticleBySlug, getArticlesByField, getFieldTitle, getPublishedArticles, toArticleCardData } from "@/lib/articles";
@@ -80,7 +81,8 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
           </footer>
         )}
       </article>
-      <ArticleComments key={article.slug} slug={article.slug} />
+      <ArticleLike key={`like-${article.slug}`} slug={article.slug} />
+      <ArticleComments key={`comments-${article.slug}`} slug={article.slug} />
       <section className="related-section">
         <SectionTitle eyebrow="Continue reading" title="Related Pieces" />
         <div className="article-grid">

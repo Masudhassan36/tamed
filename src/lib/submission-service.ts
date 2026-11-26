@@ -12,6 +12,8 @@ type ScriptResult = {
   comments?: PublishedComment[];
   comment?: PublishedComment;
   commentSession?: string;
+  likes?: number;
+  liked?: boolean;
 };
 
 export type PublishedComment = { id: string; firstName: string; text: string; createdAt: string };
