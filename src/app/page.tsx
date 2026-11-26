@@ -19,6 +19,9 @@ export default function Home() {
   const publishedArticles = getPublishedArticles();
   const latestIssue = getLatestIssue();
   const latestArticles = publishedArticles.filter((article) => article.issue === latestIssue).sort(newestFirst);
+  const lead = latestArticles.find((article) => article.editorialRating === "5+")
+    ?? latestArticles.find((article) => article.editorialRating === "5")
+    ?? latestArticles[0];
   const topRated = publishedArticles.filter((article) => article.editorialRating === "5").sort(newestFirst);
   const honors = publishedArticles.filter((article) => article.editorialRating === "5+" && article.issue === latestIssue);
   const featuredArticles = getFeaturedArticles();
@@ -26,20 +29,36 @@ export default function Home() {
 
   return (
     <main className="journal-home">
-      <section className="hero page-width" aria-labelledby="hero-title">
-        <div className="hero-topline"><span>Independent literary journal</span><span><LiveDate /> · <em className="hero-issue">Issue {latestIssue}</em></span></div>
-        <div className="hero-center">
-          <div className="hero-seal" aria-hidden="true"><Image src="/images/tamed-logo.svg" alt="" width={60} height={54} /></div>
-          <h1 id="hero-title" className="hero-wordmark">
+      <section className="issue-masthead" aria-labelledby="hero-title">
+        <div className="page-width">
+          <div className="issue-imprint">
+            <span>Independent literary journal</span>
+            <span>Issue {latestIssue} · <LiveDate /></span>
+          </div>
+          <h1 id="hero-title" className="issue-wordmark">
+            <Image src="/images/tamed-wordmark.svg" alt="TAMED" width={692} height={144} priority />
           </h1>
-          <p className="hero-subtitle">For voices, ideas, and stories that refuse to remain silent.</p>
-          <div className="hero-actions">
-            <Link className="button button-dark" href="#latest">Read</Link>
-            <Link className="button button-light" href="/submit">Submit Your Work <span aria-hidden="true">↗</span></Link>
+          <div className="issue-masthead-footer">
+            <p>For voices, ideas, and stories that refuse to remain silent.</p>
+            <Link href="#latest">Browse Issue {latestIssue} <span aria-hidden="true">↓</span></Link>
           </div>
         </div>
-        <div className="hero-bottomline"><span>Published by Bangladesh Creative Writing Olympiad</span><span>Read without permission</span></div>
       </section>
+
+      {lead && (
+        <section className="issue-lead page-width" aria-labelledby="issue-lead-title">
+          <Link className="image-frame issue-lead-image" href={`/article/${lead.slug}`} aria-label={`Read ${lead.title}`}>
+            <Image src={lead.coverImage} alt={lead.imageAlt} fill sizes="(max-width: 720px) 100vw, 54vw" />
+          </Link>
+          <div className="issue-lead-copy">
+            <p className="eyebrow">From Issue {latestIssue} · {getFieldTitle(lead.field)}</p>
+            <h2 id="issue-lead-title"><Link href={`/article/${lead.slug}`}>{lead.title}</Link></h2>
+            {lead.author && <p className="issue-lead-byline">By {lead.author}</p>}
+            <RatingBadge rating={lead.editorialRating} />
+            <Link className="text-link" href={`/article/${lead.slug}`}>Read the piece <span aria-hidden="true">↗</span></Link>
+          </div>
+        </section>
+      )}
 
       <section className="editorial-section page-width homepage-search-section">
         <ArticleSearch articles={publishedArticles.map(toArticleCardData)} />

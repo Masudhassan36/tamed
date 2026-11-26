@@ -37,13 +37,7 @@ function renderRuns(runs: RichContentRun[], keyPrefix: string) {
     if (run.underline) content = <u>{content}</u>;
     if (run.italic) content = <em>{content}</em>;
     if (run.bold) content = <strong>{content}</strong>;
-    return <span className="manuscript-run" style={{
-      fontFamily: run.fontFamily ? `"${run.fontFamily.replaceAll('"', '')}", serif` : undefined,
-      fontSize: run.fontSize === undefined ? undefined : `${run.fontSize}pt`,
-      color: run.color,
-      fontWeight: run.bold ? 700 : 400,
-      fontStyle: run.italic ? "italic" : "normal",
-    }} key={`${keyPrefix}-${index}`}>{content}</span>;
+    return <span className="manuscript-run" key={`${keyPrefix}-${index}`}>{content}</span>;
   });
 }
 
@@ -119,20 +113,21 @@ function withoutRepeatedTitle(article: Article, blocks: DisplayBlock[]): Display
 }
 
 export default function ArticleBody({ article }: ArticleBodyProps) {
+  const language = /^(bangla|bengali|bn)$/i.test(article.language ?? "") ? "bn" : undefined;
+  const isVerse = isVerseArticle(article);
   if (article.manuscriptParagraphs?.length) {
     return (
-      <div className="article-body article-body--original" aria-label="Published manuscript" lang={article.language?.toLowerCase() === "bangla" || article.language?.toLowerCase() === "bengali" ? "bn" : undefined}>
+      <div className={`article-body article-body--original ${isVerse ? "article-body--verse" : "article-body--prose"}`} aria-label="Published manuscript" lang={language}>
         {article.manuscriptParagraphs.map((paragraph, index) => renderManuscriptParagraph(paragraph, `original-${index}`))}
       </div>
     );
   }
-  const isVerse = isVerseArticle(article);
   const bodyClass = isVerse ? "article-body article-body--verse" : "article-body article-body--prose";
   const sourceBlocks = article.richContent?.length ? richBlocks(article.richContent) : plainBlocks(article);
   const blocks = withoutRepeatedTitle(article, sourceBlocks);
 
   return (
-    <div className={bodyClass} aria-label="Published manuscript">
+    <div className={bodyClass} aria-label="Published manuscript" lang={language}>
       {blocks.map((block, index) => {
         if (block.kind === "break") return <span className="manuscript-break" aria-hidden="true" key={`break-${index}`} />;
         const content = renderRuns(block.runs ?? [], `block-${index}`);
@@ -164,6 +159,5 @@ function renderManuscriptParagraph(paragraph: ManuscriptParagraph, key: string):
     paddingLeft: paragraph.indentLeft === undefined ? undefined : `${paragraph.indentLeft}pt`,
     paddingRight: paragraph.indentRight === undefined ? undefined : `${paragraph.indentRight}pt`,
     textIndent: paragraph.indentFirst === undefined ? undefined : `${paragraph.indentFirst}pt`,
-    lineHeight: paragraph.lineHeight ?? (paragraph.sourceLine ? "1" : undefined),
   }}>{paragraph.runs.length ? renderRuns(paragraph.runs, key) : <br />}</p>;
 }

@@ -19,7 +19,10 @@ export default function Logo({
       {imageSrc ? (
         <Image className="wordmark-image" src={imageSrc} alt="TAMED" width={imageWidth} height={imageHeight} />
       ) : (
-        <Image className="wordmark-image" src="/images/tamed-masthead.svg" alt="" width={558} height={142} />
+        <>
+          <Image className="wordmark-symbol" src="/images/tamed-logo.svg" alt="" width={60} height={54} />
+          <Image className="wordmark-image" src="/images/tamed-wordmark.svg" alt="" width={692} height={144} />
+        </>
       )}
     </Link>
   );

@@ -49,7 +49,7 @@ export default function AuthorDirectory({ articles }: { articles: Article[] }) {
         <div>
           <p className="eyebrow">{rank !== null && `Rank ${rank} · `}{pieces.length} {pieces.length === 1 ? "published piece" : "published pieces"}</p>
           <h2>{name}</h2>
-          <p>{average === null ? "No rated pieces yet" : `${points} ranking points · Average rating ${average}`}</p>
+          <p>{average === null ? "No rated pieces yet" : <><span className="author-score">{points} ranking points</span> Average rating {average}</>}</p>
         </div>
         <div className="author-works">{pieces.map((piece) => <Link className="author-work" href={`/article/${piece.slug}`} key={piece.slug}><span>{piece.title}</span><time dateTime={piece.publishedAt ?? undefined}>Issue {piece.issue} · {formatPublicationDate(piece.publishedAt) ?? "Published"}</time></Link>)}</div>
       </article>)}
