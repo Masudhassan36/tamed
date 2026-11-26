@@ -117,7 +117,10 @@ function reflowPdfProse(blocks: ManuscriptParagraph[]): ManuscriptParagraph[] {
     .filter((block, index) => block.sourceLine && !block.pageBreakBefore && blocks[index - 1]?.sourceLine)
     .map((block) => block.spaceBefore ?? 0)
     .sort((a, b) => a - b);
-  const lineGap = gaps[Math.floor(gaps.length / 4)] ?? 0;
+  // Some PDFs have more paragraph breaks than wrapped lines. Use a
+  // recurring tighter gap when the wider spacing dominates the document.
+  const lineGap = gaps.find((gap, index) => gaps[index + 2] - gap <= 0.5)
+    ?? gaps[Math.floor(gaps.length / 4)] ?? 0;
   const paragraphGap = lineGap + Math.max(4, lineGap * 0.25);
   const paragraphs: ManuscriptParagraph[] = [];
   let active: ManuscriptParagraph | undefined;
@@ -129,9 +132,14 @@ function reflowPdfProse(blocks: ManuscriptParagraph[]): ManuscriptParagraph[] {
       continue;
     }
     const priorText = previous?.runs.map((run) => run.text).join("") ?? "";
+    const currentText = block.runs.map((run) => run.text).join("");
     const sentenceEnds = /[.!?।…][”"'’»)]*$/u.test(priorText.trimEnd());
+    const sectionLabel = /^(?:\d{1,3}[.)]|(?:chapter|part|section)\s+(?:\d+|[ivxlcdm]+))$/iu;
+    const sectionBreak = sectionLabel.test(currentText.trim()) || sectionLabel.test(priorText.trim());
+    const dialogueBreak = sentenceEnds && priorText.trim().length < 45
+      && /^\s*[“"«]/u.test(currentText);
     const indented = (block.indentLeft ?? 0) - (previous?.indentLeft ?? 0) >= 8;
-    if (!active || indented || (block.spaceBefore ?? 0) > paragraphGap
+    if (!active || indented || sectionBreak || dialogueBreak || (block.spaceBefore ?? 0) > paragraphGap
       || (block.pageBreakBefore && sentenceEnds)) {
       active = { runs: [...block.runs], alignment: block.alignment };
       paragraphs.push(active);
