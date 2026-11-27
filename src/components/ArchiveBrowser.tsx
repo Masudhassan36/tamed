@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import ArticleCard from "@/components/ArticleCard";
+import { matchesArticleSearch } from "@/lib/article-search";
 import type { ArticleCardData } from "@/lib/articles";
 
 type ArchiveArticle = ArticleCardData;
@@ -49,7 +50,7 @@ export default function ArchiveBrowser({ articles }: ArchiveBrowserProps) {
   const availableIssues = Array.from(new Set(articles.map((article) => article.issue))).sort((a, b) => b - a);
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const filteredArticles = datedArticles.filter(({ article, date }) => {
-    const matchesQuery = !normalizedQuery || `${article.title} ${article.author ?? ""}`.toLocaleLowerCase().includes(normalizedQuery);
+    const matchesQuery = matchesArticleSearch(article, normalizedQuery);
     const matchesWeek = week === "all" || date?.week === Number(week);
     const matchesMonth = month === "all" || date?.month === Number(month);
     const matchesYear = year === "all" || (year === "unknown" ? !date?.year : date?.year === year);
@@ -62,13 +63,13 @@ export default function ArchiveBrowser({ articles }: ArchiveBrowserProps) {
     <div className="archive-browser">
       <div className="archive-controls" role="search" aria-label="Search and filter published works">
         <label className="archive-search" htmlFor="archive-query">
-          <span>Search by title or author</span>
+          <span>Search the archive</span>
           <input
             id="archive-query"
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search the archive"
+            placeholder="Title, author, genre, or TMD ID"
           />
         </label>
         <label htmlFor="archive-week">

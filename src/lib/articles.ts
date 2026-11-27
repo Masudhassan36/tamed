@@ -81,7 +81,7 @@ export type ManuscriptParagraph = {
 
 export type ArticleCardData = Pick<
   Article,
-  "slug" | "field" | "author" | "editorialRating" | "coverImage" | "imageAlt" | "title" | "publishedAt"
+  "id" | "slug" | "field" | "author" | "editorialRating" | "coverImage" | "imageAlt" | "title" | "publishedAt"
 > & {
   fieldTitle: string;
   firstLine: string | null;
@@ -330,6 +330,7 @@ export function getFieldTitle(field: CategorySlug): string {
 
 export function toArticleCardData(article: Article): ArticleCardData {
   return {
+    id: article.id,
     slug: article.slug,
     field: article.field,
     fieldTitle: getFieldTitle(article.field),
