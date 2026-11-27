@@ -48,6 +48,7 @@ button, input, select { font: inherit; }
 .social-placeholders { display: flex; align-items: center; gap: 13px; font-family: var(--sans); font-size: 17px; line-height: 1; }
 .social-placeholders span { display: inline-block; min-width: 15px; text-align: center; }
 .category-nav { display: flex; gap: 22px; width: min(1400px, calc(100% - 72px)); margin: 0 auto; overflow-x: auto; border-top: 1px solid var(--rule); padding: 11px 0; white-space: nowrap; }
+.category-nav { justify-content: safe center; }
 .category-nav a { color: var(--muted); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
 .category-nav a:hover { color: var(--ink); }
 
